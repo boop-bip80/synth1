@@ -113,7 +113,7 @@ void drawEngravedText (juce::Graphics& g, const juce::String& text,
 {
     g.setFont (fontToUse.withExtraKerningFactor (tracking / juce::jmax (1.0f, fontToUse.getHeight())));
 
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.setColour (juce::Colours::black.withAlpha (0.70f));
     g.drawText (text, area.translated (0, 1), justification, false);
 
     g.setColour (colour);
@@ -126,20 +126,30 @@ void drawPlate (juce::Graphics& g, juce::Rectangle<float> area, float cornerSize
     juce::Path path;
     path.addRoundedRectangle (area, cornerSize);
 
-    g.setGradientFill (juce::ColourGradient::vertical (colour::plateTop, colour::plateBottom, area));
+    juce::ColourGradient face (colour::plateTop, area.getCentreX(), area.getY() - 30.0f,
+                               colour::plateBottom, area.getCentreX(), area.getBottom(), false);
+    face.addColour (0.55, juce::Colour (0xff0f151b));
+    g.setGradientFill (face);
     g.fillPath (path);
 
-    // Top light catch.
-    g.setColour (juce::Colours::white.withAlpha (raised ? 0.07f : 0.035f));
-    g.drawLine (area.getX() + cornerSize, area.getY() + 0.5f,
-                area.getRight() - cornerSize, area.getY() + 0.5f, 1.0f);
+    // A warm hairline catches the light along the top, like a machined edge.
+    g.setColour (juce::Colour (0xff8e7149).withAlpha (raised ? 0.55f : 0.32f));
+    g.drawLine (area.getX() + cornerSize, area.getY() + 0.6f,
+                area.getRight() - cornerSize, area.getY() + 0.6f, 1.0f);
 
-    g.setColour (juce::Colours::black.withAlpha (0.65f));
-    g.drawLine (area.getX() + cornerSize, area.getBottom() - 0.5f,
-                area.getRight() - cornerSize, area.getBottom() - 0.5f, 1.0f);
+    g.setColour (juce::Colours::white.withAlpha (raised ? 0.045f : 0.025f));
+    g.drawLine (area.getX() + cornerSize, area.getY() + 1.6f,
+                area.getRight() - cornerSize, area.getY() + 1.6f, 0.8f);
 
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
-    g.drawRoundedRectangle (area.reduced (0.5f), cornerSize, 1.0f);
+    // Inner shadow along the bottom.
+    g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                             area.getCentreX(), area.getBottom() - 16.0f,
+                                             juce::Colours::black.withAlpha (0.55f),
+                                             area.getCentreX(), area.getBottom(), false));
+    g.fillRoundedRectangle (area.reduced (1.0f), cornerSize);
+
+    g.setColour (juce::Colours::black.withAlpha (0.75f));
+    g.drawRoundedRectangle (area.reduced (0.7f), cornerSize, 1.0f);
 }
 
 void drawInsetWell (juce::Graphics& g, juce::Rectangle<float> area, float cornerSize)
@@ -147,36 +157,39 @@ void drawInsetWell (juce::Graphics& g, juce::Rectangle<float> area, float corner
     juce::Path path;
     path.addRoundedRectangle (area, cornerSize);
 
-    g.setGradientFill (juce::ColourGradient::vertical (juce::Colour (0xff080a0c),
-                                                       juce::Colour (0xff171a1f), area));
+    g.setGradientFill (juce::ColourGradient::vertical (juce::Colour (0xff030405),
+                                                       juce::Colour (0xff10151a), area));
     g.fillPath (path);
 
-    g.setColour (juce::Colours::black.withAlpha (0.85f));
+    g.setColour (juce::Colours::black.withAlpha (0.9f));
     g.drawRoundedRectangle (area.reduced (0.5f), cornerSize, 1.0f);
 
-    g.setColour (juce::Colours::white.withAlpha (0.05f));
+    g.setColour (juce::Colours::white.withAlpha (0.055f));
     g.drawLine (area.getX() + cornerSize, area.getBottom() - 1.0f,
-                area.getRight() - cornerSize, area.getBottom() - 1.0f, 1.0f);
+                area.getRight() - cornerSize, area.getBottom() - 1.0f, 0.8f);
 }
 
 void drawScrew (juce::Graphics& g, juce::Point<float> centre, float radius)
 {
-    g.setColour (juce::Colours::black.withAlpha (0.7f));
-    g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre.translated (0.0f, 0.8f)));
+    g.setColour (juce::Colours::black.withAlpha (0.75f));
+    g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre.translated (0.0f, 1.1f)));
 
-    g.setGradientFill (juce::ColourGradient::vertical (juce::Colour (0xff8d949d), centre.y - radius,
-                                                       juce::Colour (0xff3a3f46), centre.y + radius));
+    g.setGradientFill (juce::ColourGradient::vertical (juce::Colour (0xff6d747c), centre.y - radius,
+                                                       juce::Colour (0xff20252b), centre.y + radius));
     g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre));
 
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    g.setColour (juce::Colours::white.withAlpha (0.22f));
     g.drawEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre), 0.7f);
+
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawEllipse (juce::Rectangle<float> (radius * 2.6f, radius * 2.6f).withCentre (centre), 1.0f);
 
     const float angle = (float) (hash ((int) (centre.x * 13.0f + centre.y)) % 360) * 0.0174533f;
     juce::Path slot;
     slot.startNewSubPath (-radius * 0.62f, 0.0f);
     slot.lineTo (radius * 0.62f, 0.0f);
-    g.setColour (juce::Colour (0xff191c20));
-    g.strokePath (slot, juce::PathStrokeType (1.4f),
+    g.setColour (juce::Colour (0xff0c0e11));
+    g.strokePath (slot, juce::PathStrokeType (1.5f),
                   juce::AffineTransform::rotation (angle).translated (centre));
 }
 
@@ -186,8 +199,9 @@ void drawGlow (juce::Graphics& g, juce::Point<float> centre, float radius,
     if (intensity <= 0.001f)
         return;
 
-    juce::ColourGradient gradient (colour.withAlpha (0.30f * intensity), centre.x, centre.y,
+    juce::ColourGradient gradient (colour.withAlpha (0.32f * intensity), centre.x, centre.y,
                                    colour.withAlpha (0.0f), centre.x + radius, centre.y, true);
+    gradient.addColour (0.35, colour.withAlpha (0.10f * intensity));
     g.setGradientFill (gradient);
     g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (centre));
 }
@@ -198,23 +212,38 @@ void drawLed (juce::Graphics& g, juce::Rectangle<float> area, bool on,
     const auto centre = area.getCentre();
 
     if (on)
-        drawGlow (g, centre, area.getWidth() * 2.3f, colour, intensity);
+        drawGlow (g, centre, area.getWidth() * 3.0f, colour, intensity);
 
-    g.setColour (juce::Colours::black.withAlpha (0.8f));
-    g.fillEllipse (area.expanded (1.2f));
+    // Black oxide bezel.
+    g.setColour (juce::Colours::black.withAlpha (0.9f));
+    g.fillEllipse (area.expanded (1.6f));
 
-    g.setGradientFill (juce::ColourGradient (on ? colour.brighter (0.35f)
-                                                : juce::Colour (0xff23262b),
+    g.setColour (juce::Colour (0xff2a3037));
+    g.drawEllipse (area.expanded (1.2f), 1.0f);
+
+    g.setGradientFill (juce::ColourGradient (on ? colour.brighter (0.45f)
+                                                : juce::Colour (0xff252a30),
                                              centre.x, area.getY(),
-                                             on ? colour.darker (0.55f)
-                                                : juce::Colour (0xff0c0e10),
+                                             on ? colour.darker (0.45f)
+                                                : juce::Colour (0xff0a0c0e),
                                              centre.x, area.getBottom(), false));
     g.fillEllipse (area);
 
-    g.setColour (juce::Colours::white.withAlpha (on ? 0.55f * intensity : 0.10f));
-    g.fillEllipse (area.withSizeKeepingCentre (area.getWidth() * 0.28f,
-                                               area.getHeight() * 0.22f)
-                       .translated (0.0f, -area.getHeight() * 0.20f));
+    if (on)
+    {
+        g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.85f * intensity),
+                                                 centre.x, area.getY() + 1.0f,
+                                                 juce::Colours::transparentWhite,
+                                                 centre.x, area.getCentreY() + 1.0f, false));
+        g.fillEllipse (area.reduced (area.getWidth() * 0.18f));
+    }
+    else
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.09f));
+        g.fillEllipse (area.withSizeKeepingCentre (area.getWidth() * 0.3f,
+                                                   area.getHeight() * 0.22f)
+                           .translated (0.0f, -area.getHeight() * 0.22f));
+    }
 }
 
 //==============================================================================
@@ -228,67 +257,93 @@ void drawWoodFrame (juce::Graphics& g, juce::Rectangle<int> area)
     juce::Graphics::ScopedSaveState save (g);
     g.reduceClipRegion (area);
 
-    // Grain: long horizontal streaks with a slow wobble.
-    for (int i = 0; i < 240; ++i)
+    // Grain: long horizontal streaks with a slow wobble, plus a satin sheen.
+    for (int i = 0; i < 300; ++i)
     {
         const float y = bounds.getY() + (float) (hash (i * 7 + (int) bounds.getY()) % 100000) / 100000.0f * bounds.getHeight();
         const float wobble = (float) (hash (i * 31) % 1000) / 1000.0f;
-        const float alpha = 0.038f + 0.075f * (float) (hash (i * 17) % 1000) / 1000.0f;
+        const float alpha = 0.032f + 0.070f * (float) (hash (i * 17) % 1000) / 1000.0f;
 
-        g.setColour (juce::Colours::black.withAlpha (alpha * 0.9f));
-        g.drawLine (bounds.getX(), y, bounds.getRight(), y + wobble * 2.0f - 1.0f, 0.7f);
+        g.setColour (juce::Colours::black.withAlpha (alpha));
+        g.drawLine (bounds.getX(), y, bounds.getRight(), y + wobble * 2.4f - 1.2f, 0.7f);
 
-        g.setColour (colour::woodLight.withAlpha (alpha * 0.7f));
-        g.drawLine (bounds.getX(), y + 1.2f, bounds.getRight(), y + 1.2f + wobble * 2.0f, 0.5f);
+        g.setColour (colour::woodLight.withAlpha (alpha * 0.75f));
+        g.drawLine (bounds.getX(), y + 1.2f, bounds.getRight(), y + 1.2f + wobble * 2.4f, 0.55f);
     }
 
-    // Deep outer edge and a crisp inner bevel.
-    g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.55f),
+    // A warm highlight across the top rail.
+    g.setGradientFill (juce::ColourGradient (colour::woodLight.withAlpha (0.22f),
+                                             bounds.getCentreX(), bounds.getY(),
+                                             juce::Colours::transparentBlack,
+                                             bounds.getCentreX(), bounds.getY() + 18.0f, false));
+    g.fillRect (bounds.withHeight (18.0f));
+
+    // Deep shadow where the metal face sits on the wood.
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawRect (bounds.reduced (0.5f), 1.0f);
+
+    g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.45f),
                                              bounds.getX(), bounds.getY(),
                                              juce::Colours::transparentBlack,
-                                             bounds.getX() + 26.0f, bounds.getY(), false));
-    g.fillRect (bounds.withWidth (26.0f));
-
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawRect (bounds.reduced (0.5f), 1.0f);
+                                             bounds.getX() + 30.0f, bounds.getY(), false));
+    g.fillRect (bounds.withWidth (30.0f));
 }
 
 void drawBrushedPanel (juce::Graphics& g, juce::Rectangle<int> area)
 {
     const auto bounds = area.toFloat();
 
-    g.setGradientFill (juce::ColourGradient (colour::panelTop.brighter (0.06f),
-                                             bounds.getCentreX(), bounds.getY() - 40.0f,
-                                             colour::panelBottom,
-                                             bounds.getCentreX(), bounds.getBottom(), false));
+    juce::ColourGradient face (colour::panelTop.brighter (0.08f),
+                               bounds.getCentreX(), bounds.getY() - 60.0f,
+                               colour::panelBottom,
+                               bounds.getCentreX(), bounds.getBottom(), false);
+    face.addColour (0.42, juce::Colour (0xff121820));
+    g.setGradientFill (face);
     g.fillRect (bounds);
 
-    // Brushed metal grain: fine horizontal lines at very low contrast.
-    for (int i = 0; i < 150; ++i)
+    // Fine horizontal brushed grain.
+    for (int i = 0; i < 220; ++i)
     {
-        const float y = bounds.getY() + (float) i * bounds.getHeight() / 150.0f;
-        g.setColour (juce::Colours::white.withAlpha (0.016f + 0.020f * (float) (hash (i) % 100) / 100.0f));
+        const float y = bounds.getY() + (float) i * bounds.getHeight() / 220.0f;
+        g.setColour (juce::Colours::white.withAlpha (0.012f + 0.018f * (float) (hash (i) % 100) / 100.0f));
         g.drawLine (bounds.getX(), y, bounds.getRight(), y, 0.6f);
     }
 
-    // Warm key light from above.
-    juce::ColourGradient light (colour::amber.withAlpha (0.035f),
-                                bounds.getCentreX(), bounds.getY(),
-                                juce::Colours::transparentBlack,
-                                bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.65f,
-                                false);
-    g.setGradientFill (light);
+    // Diagonal machining glints, very low contrast.
+    for (int i = 0; i < 9; ++i)
+    {
+        const float x = bounds.getX() + bounds.getWidth() * (0.06f + 0.11f * (float) i);
+        g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                                 x, bounds.getY(),
+                                                 juce::Colours::white.withAlpha (0.018f),
+                                                 x + 120.0f, bounds.getBottom(), false));
+        g.fillRect (juce::Rectangle<float> (x, bounds.getY(), 120.0f, bounds.getHeight()));
+    }
+
+    // Warm key light falling from above, and a cool bounce at the bottom.
+    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.055f),
+                                             bounds.getCentreX(), bounds.getY(),
+                                             juce::Colours::transparentBlack,
+                                             bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.62f, false));
+    g.fillRect (bounds);
+
+    g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                             bounds.getCentreX(), bounds.getBottom() - 120.0f,
+                                             juce::Colour (0xff4f6f86).withAlpha (0.035f),
+                                             bounds.getCentreX(), bounds.getBottom(), false));
     g.fillRect (bounds);
 }
 
 juce::Colour categoryColour (const juce::String& category)
 {
-    if (category == "BRASS") return juce::Colour (0xfff2a84c);
-    if (category == "PAD")   return juce::Colour (0xff77c9c1);
-    if (category == "LEAD")  return juce::Colour (0xfff4d06f);
-    if (category == "KEY")   return juce::Colour (0xffb7a2e0);
-    if (category == "BASS")  return juce::Colour (0xffe3896c);
-    if (category == "FX")    return juce::Colour (0xff9fce5a);
+    if (category == "BRASS")   return juce::Colour (0xfff2b26a);
+    if (category == "PAD")     return juce::Colour (0xff8ecfbe);
+    if (category == "LEAD")    return juce::Colour (0xfff4d17c);
+    if (category == "KEY")     return juce::Colour (0xffc1addf);
+    if (category == "BASS")    return juce::Colour (0xffe59a76);
+    if (category == "FX")      return juce::Colour (0xffa8ce7a);
+    if (category == "ORGAN")   return juce::Colour (0xff9fc7df);
+    if (category == "STRINGS") return juce::Colour (0xffd7b98c);
 
     return colour::amber;
 }

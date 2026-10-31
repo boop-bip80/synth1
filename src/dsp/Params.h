@@ -19,6 +19,7 @@ inline constexpr const char* ring       = "ring";
 inline constexpr const char* noise      = "noise";
 
 inline constexpr const char* vco1Level  = "vco1Level";
+inline constexpr const char* vco1Sub    = "vco1Sub";
 inline constexpr const char* vco1Octave = "vco1Octave";
 inline constexpr const char* vco1Detune = "vco1Detune";
 
@@ -31,6 +32,8 @@ inline constexpr const char* hpfCutoff  = "hpfCutoff";
 inline constexpr const char* hpfRes     = "hpfRes";
 inline constexpr const char* lpfCutoff  = "lpfCutoff";
 inline constexpr const char* lpfRes     = "lpfRes";
+inline constexpr const char* filterTrack = "filterTrack";
+inline constexpr const char* drive      = "drive";
 
 inline constexpr const char* fIl        = "fIl";
 inline constexpr const char* fAl        = "fAl";
@@ -56,6 +59,9 @@ inline constexpr const char* aftertouch = "aftertouch";
 inline constexpr const char* bendRange  = "bendRange";
 inline constexpr const char* spread     = "spread";
 inline constexpr const char* velocity   = "velocity";
+inline constexpr const char* glide      = "glide";
+inline constexpr const char* tune       = "tune";
+inline constexpr const char* vintage    = "vintage";
 } // namespace pid
 
 //==============================================================================
@@ -92,6 +98,7 @@ struct Params
     float noise = 0.015f;
 
     float vco1Level = 0.78f;
+    float vco1Sub = 0.0f;
     float vco1Octave = 0.0f;
     float vco1Detune = -6.0f;
 
@@ -104,6 +111,8 @@ struct Params
     float hpfRes = 0.12f;
     float lpfCutoff = 2400.0f;
     float lpfRes = 0.28f;
+    float filterTrack = 0.35f;
+    float drive = 0.25f;
 
     float fIl = 0.12f;
     float fAl = 0.92f;
@@ -129,6 +138,9 @@ struct Params
     float bendRange = 2.0f;
     float spread = 0.45f;
     float velocity = 0.45f;
+    float glide = 0.0f;
+    float tune = 0.0f;
+    float vintage = 0.35f;
 };
 
 Params defaultParams();

@@ -7,6 +7,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <memory>
+#include <vector>
 
 namespace cs80::ui
 {
@@ -14,14 +15,38 @@ namespace cs80::ui
 class SectionPanel : public juce::Component
 {
 public:
-    SectionPanel (juce::String sectionTitle, juce::String sectionSubtitle = {});
+    enum class Decoration
+    {
+        none,
+        saw,
+        pulse,
+        ring,
+        filter,
+        filterEnv,
+        ampEnv,
+        lfo,
+        touch,
+        output
+    };
+
+    SectionPanel (juce::String sectionTitle, juce::String sectionSubtitle = {},
+                  juce::Colour accentColour = colour::amber,
+                  Decoration decorationToUse = Decoration::none,
+                  int sectionNumber = 0);
 
     void paint (juce::Graphics&) override;
 
-    static constexpr int titleHeight = 30;
+    static constexpr int titleHeight = 34;
+
+    void setAccentColour (juce::Colour newColour) { accent = newColour; repaint(); }
 
 private:
+    void paintDecoration (juce::Graphics& g, juce::Rectangle<float> body);
+
     juce::String title, subtitle;
+    juce::Colour accent;
+    Decoration decoration;
+    int number;
 };
 
 //==============================================================================
@@ -59,7 +84,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    void setLabelOverride (juce::String newLabel) { label = std::move (newLabel); }
+    void setLabelOverride (juce::String newLabel) { label = std::move (newLabel); repaint(); }
 
 private:
     juce::String paramId;

@@ -2,15 +2,17 @@
 
 #include "../dsp/Params.h"
 
+#include <cmath>
+
 namespace cs80
 {
 namespace
 {
-constexpr int headerDividerY = 112;
-constexpr int mainRowY = 118;
-constexpr int mainRowH = 352;
-constexpr int lowerRowY = 480;
-constexpr int lowerRowH = 136;
+constexpr int headerDividerY = 154;
+constexpr int mainRowY = 164;
+constexpr int mainRowH = 392;
+constexpr int lowerRowY = 568;
+constexpr int lowerRowH = 144;
 
 juce::Rectangle<int> mainSection (int x, int width)
 {
@@ -55,92 +57,147 @@ public:
     void paint (juce::Graphics& g) override
     {
         const auto full = getLocalBounds();
-        const juce::Rectangle<float> face (38.0f, 12.0f, 1204.0f, 756.0f);
+        const juce::Rectangle<float> face (40.0f, 10.0f, 1280.0f, 860.0f);
 
+        g.fillAll (ui::colour::windowBg);
         ui::drawWoodFrame (g, full);
 
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.fillRoundedRectangle (face.expanded (6.0f).translated (0.0f, 3.0f), 12.0f);
+        // Shadow and metal face.
+        g.setColour (juce::Colours::black.withAlpha (0.65f));
+        g.fillRoundedRectangle (face.expanded (5.0f).translated (0.0f, 4.0f), 10.0f);
 
-        ui::drawBrushedPanel (g, face.toNearestInt());
+        {
+            juce::Graphics::ScopedSaveState save (g);
+            juce::Path faceClip;
+            faceClip.addRoundedRectangle (face, 7.0f);
+            g.reduceClipRegion (faceClip);
 
-        // Warm light falling from the top edge.
-        g.setGradientFill (juce::ColourGradient (ui::colour::amber.withAlpha (0.035f),
-                                                 face.getCentreX(), face.getY(),
-                                                 juce::Colours::transparentBlack,
-                                                 face.getCentreX(), face.getY() + 320.0f, false));
-        g.fillRoundedRectangle (face, 8.0f);
+            ui::drawBrushedPanel (g, face.toNearestInt());
 
-        // Bevel and inner hairline.
-        g.setColour (juce::Colours::white.withAlpha (0.10f));
-        g.drawRoundedRectangle (face.reduced (0.6f), 8.0f, 1.2f);
-        g.setColour (juce::Colours::black.withAlpha (0.80f));
-        g.drawRoundedRectangle (face.reduced (1.6f), 7.4f, 1.0f);
+            // A brass trim cap along the top edge of the face.
+            g.setGradientFill (juce::ColourGradient (juce::Colour (0xffc79a5b),
+                                                     face.getX(), face.getY(),
+                                                     juce::Colour (0xff5a3c1b),
+                                                     face.getRight(), face.getY(), false));
+            g.fillRect (juce::Rectangle<float> (face.getX() + 6.0f, face.getY() + 0.5f,
+                                                face.getWidth() - 12.0f, 2.0f));
+
+            // Warm bloom behind the display and scope.
+            ui::drawGlow (g, { 620.0f, 74.0f }, 270.0f, ui::colour::amber, 0.10f);
+            ui::drawGlow (g, { 970.0f, 68.0f }, 140.0f, ui::colour::amber, 0.075f);
+
+            // Side vignettes.
+            g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.42f),
+                                                     face.getX(), 0.0f,
+                                                     juce::Colours::transparentBlack,
+                                                     face.getX() + 46.0f, 0.0f, false));
+            g.fillRect (face.withWidth (46.0f));
+
+            g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                                     face.getRight() - 46.0f, 0.0f,
+                                                     juce::Colours::black.withAlpha (0.42f),
+                                                     face.getRight(), 0.0f, false));
+            g.fillRect (face.withTrimmedLeft (face.getWidth() - 46.0f));
+
+            // Bottom bounce.
+            g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                                     face.getCentreX(), face.getBottom() - 90.0f,
+                                                     juce::Colours::black.withAlpha (0.30f),
+                                                     face.getCentreX(), face.getBottom(), false));
+            g.fillRect (face.withTop (face.getBottom() - 90.0f));
+        }
+
+        // Bevels.
+        g.setColour (juce::Colours::white.withAlpha (0.11f));
+        g.drawRoundedRectangle (face.reduced (0.7f), 7.5f, 1.2f);
+        g.setColour (juce::Colours::black.withAlpha (0.85f));
+        g.drawRoundedRectangle (face.reduced (1.8f), 7.0f, 1.0f);
         g.setColour (juce::Colours::white.withAlpha (0.045f));
-        g.drawRoundedRectangle (face.reduced (8.0f), 5.0f, 1.0f);
+        g.drawRoundedRectangle (face.reduced (9.0f), 4.0f, 0.9f);
 
-        // Edge vignette.
-        g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.35f),
-                                                 0.0f, 0.0f,
-                                                 juce::Colours::transparentBlack,
-                                                 38.0f, 0.0f, false));
-        g.fillRect (0, 0, 38, 780);
-        g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
-                                                 1204.0f, 0.0f,
-                                                 juce::Colours::black.withAlpha (0.35f),
-                                                 1280.0f, 0.0f, false));
-        g.fillRect (1204, 0, 76, 780);
+        // Brass corner brackets.
+        {
+            const float inset = 20.0f;
+            const float len = 26.0f;
+            g.setColour (juce::Colour (0xffb3874f).withAlpha (0.28f));
+
+            for (int corner = 0; corner < 4; ++corner)
+            {
+                const bool right = (corner & 1) != 0;
+                const bool bottom = corner >= 2;
+                const float x = right ? face.getRight() - inset : face.getX() + inset;
+                const float y = bottom ? face.getBottom() - inset : face.getY() + inset;
+                const float dx = right ? -len : len;
+                const float dy = bottom ? -len : len;
+
+                g.drawLine (x, y, x + dx, y, 1.0f);
+                g.drawLine (x, y, x, y + dy, 1.0f);
+            }
+        }
 
         // Corner screws.
-        for (juce::Point<float> screw : { juce::Point<float> (26.0f, 26.0f),
-                                          juce::Point<float> (1254.0f, 26.0f),
-                                          juce::Point<float> (26.0f, 754.0f),
-                                          juce::Point<float> (1254.0f, 754.0f),
-                                          juce::Point<float> (26.0f, 390.0f),
-                                          juce::Point<float> (1254.0f, 390.0f) })
-            ui::drawScrew (g, screw, 5.2f);
+        for (juce::Point<float> screw : { juce::Point<float> (26.0f, 28.0f),
+                                          juce::Point<float> (1334.0f, 28.0f),
+                                          juce::Point<float> (26.0f, 852.0f),
+                                          juce::Point<float> (1334.0f, 852.0f),
+                                          juce::Point<float> (26.0f, 440.0f),
+                                          juce::Point<float> (1334.0f, 440.0f) })
+            ui::drawScrew (g, screw, 5.4f);
 
-        // Header rule.
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawLine (60.0f, (float) headerDividerY, 1220.0f, (float) headerDividerY, 1.0f);
-        g.setColour (juce::Colours::white.withAlpha (0.05f));
-        g.drawLine (60.0f, (float) headerDividerY + 1.0f, 1220.0f, (float) headerDividerY + 1.0f, 1.0f);
+        // Header rule and fine chrome dividers between the header clusters.
+        g.setColour (juce::Colours::black.withAlpha (0.60f));
+        g.drawLine (58.0f, (float) headerDividerY, 1302.0f, (float) headerDividerY, 1.0f);
 
-        // Warm bloom behind the display and scope.
-        ui::drawGlow (g, { 591.0f, 62.0f }, 250.0f, ui::colour::amber, 0.10f);
-        ui::drawGlow (g, { 903.0f, 62.0f }, 130.0f, ui::colour::amber, 0.08f);
+        g.setColour (juce::Colour (0xffb3874f).withAlpha (0.16f));
+        g.drawLine (382.0f, 30.0f, 382.0f, 140.0f, 0.8f);
+        g.drawLine (872.0f, 30.0f, 872.0f, 140.0f, 0.8f);
+        g.drawLine (1070.0f, 30.0f, 1070.0f, 140.0f, 0.8f);
+        g.setColour (juce::Colour (0xff8a6a3f).withAlpha (0.26f));
+        g.drawLine (58.0f, (float) headerDividerY + 1.0f, 1302.0f, (float) headerDividerY + 1.0f, 0.8f);
 
-        // Voice activity caption and power lamp.
+        // Header captions.
         ui::drawTrackedText (g, "VOICE ACTIVITY",
-                             { 994, 25, 136, 10 }, ui::colour::textDim,
-                             juce::Justification::centred, ui::trackedFont (6.2f, 1.4f, true), 0.3f);
+                             { 1082, 19, 138, 9 }, ui::colour::textFaint,
+                             juce::Justification::centred, ui::trackedFont (5.8f, 1.3f, true), 0.3f);
 
-        ui::drawLed (g, { 1188.0f, 42.0f, 9.0f, 9.0f }, true, ui::colour::amber, 0.95f);
-        ui::drawTrackedText (g, "POWER", { 1170, 55, 46, 9 }, ui::colour::textDim,
-                             juce::Justification::centred, ui::trackedFont (5.8f, 1.0f, true), 0.2f);
+        ui::drawTrackedText (g, "OUTPUT MONITOR",
+                             { 882, 107, 176, 8 }, ui::colour::textFaint,
+                             juce::Justification::centred, ui::trackedFont (5.4f, 1.2f, true), 0.3f);
+
+        // Power jewel and MIDI lamp.
+        ui::drawLed (g, { 1259.0f, 38.0f, 9.0f, 9.0f }, true, ui::colour::amber, 0.95f);
+        ui::drawTrackedText (g, "POWER", { 1242, 50, 44, 8 }, ui::colour::textFaint,
+                             juce::Justification::centred, ui::trackedFont (5.4f, 1.0f, true), 0.2f);
+
+        ui::drawLed (g, { 1259.0f, 72.0f, 7.0f, 7.0f }, true, ui::colour::green, 0.65f);
+        ui::drawTrackedText (g, "MIDI", { 1248, 82, 32, 8 }, ui::colour::textFaint,
+                             juce::Justification::centred, ui::trackedFont (5.0f, 0.9f, true), 0.2f);
 
         // Footer engraving.
         ui::drawTrackedText (g, "CS-80E  /  EIGHT VOICE POLYPHONIC SYNTHESIZER",
-                             { 60, 746, 460, 16 }, ui::colour::textFaint,
-                             juce::Justification::centredLeft, ui::trackedFont (7.0f, 1.8f, true), 0.4f);
+                             { 60, 850, 400, 14 }, ui::colour::textFaint,
+                             juce::Justification::centredLeft, ui::trackedFont (6.4f, 1.6f, true), 0.4f);
 
         ui::drawTrackedText (g, "DUAL VCO  ·  RING MOD  ·  HPF / LPF  ·  ENSEMBLE",
-                             { 520, 746, 360, 16 }, ui::colour::textFaint.brighter (0.18f),
-                             juce::Justification::centred, ui::monoFont (6.6f), 0.3f);
+                             { 480, 850, 400, 14 }, ui::colour::textFaint.brighter (0.16f),
+                             juce::Justification::centred, ui::monoFont (6.2f), 0.3f);
 
-        ui::drawTrackedText (g, "SERIAL NO. 00108  /  V1.0.0",
-                             { 940, 746, 280, 16 }, ui::colour::textFaint.brighter (0.18f),
-                             juce::Justification::centredRight, ui::monoFont (6.6f), 0.3f);
+        const double sampleRate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
+        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V2.0.0";
+
+        ui::drawTrackedText (g, "SERIAL 00108  /  MODEL E  /  " + status,
+                             { 900, 850, 400, 14 }, ui::colour::textFaint.brighter (0.16f),
+                             juce::Justification::centredRight, ui::monoFont (6.0f), 0.2f);
     }
 
     void resized() override
     {
-        brand.setBounds (62, 30, 300, 92);
-        presetDisplay.setBounds (376, 30, 430, 64);
-        scope.setBounds (824, 32, 158, 58);
-        voiceLeds.setBounds (996, 40, 132, 26);
-        ribbon.setBounds (60, 620, 1160, 34);
-        keyboard.setBounds (60, 660, 1160, 82);
+        brand.setBounds (60, 24, 320, 112);
+        presetDisplay.setBounds (398, 30, 466, 96);
+        scope.setBounds (882, 32, 176, 72);
+        voiceLeds.setBounds (1082, 31, 138, 40);
+        ribbon.setBounds (60, 722, 1240, 32);
+        keyboard.setBounds (60, 764, 1240, 82);
     }
 
     void addBrowser (std::unique_ptr<ui::PresetBrowser> newBrowser)
@@ -181,21 +238,32 @@ public:
 private:
     void buildSections()
     {
-        addSection ("VCO 1", "SAW / OCTAVE / DETUNE", mainSection (60, 140));
-        addSection ("VCO 2", "PULSE / PWM", mainSection (210, 155));
-        addSection ("RING", "MODULATOR / NOISE", mainSection (375, 118));
-        addSection ("FILTER", "12 DB / OCT / RESONANT", mainSection (503, 252));
-        addSection ("FILTER EG", "INITIAL / ATTACK LEVEL", mainSection (765, 245));
-        addSection ("AMP EG", "ADSR", mainSection (1020, 200));
+        addSection ("VCO 1", "SAW / SUB / OCTAVE",
+                    mainSection (60, 150), ui::colour::amber, ui::SectionPanel::Decoration::saw, 1);
+        addSection ("VCO 2", "PULSE / PWM / OCTAVE",
+                    mainSection (226, 164), ui::colour::amber, ui::SectionPanel::Decoration::pulse, 2);
+        addSection ("RING", "MODULATOR / NOISE",
+                    mainSection (406, 130), ui::colour::copper, ui::SectionPanel::Decoration::ring, 3);
+        addSection ("FILTER", "HPF / LPF / TRACK / DRIVE",
+                    mainSection (552, 292), ui::colour::copper, ui::SectionPanel::Decoration::filter, 4);
+        addSection ("FILTER EG", "INITIAL / ATTACK LEVEL / ADSR",
+                    mainSection (860, 250), ui::colour::sage, ui::SectionPanel::Decoration::filterEnv, 5);
+        addSection ("AMP EG", "ADSR",
+                    mainSection (1126, 174), ui::colour::sage, ui::SectionPanel::Decoration::ampEnv, 6);
 
-        addSection ("LFO", "MODULATION", lowerSection (60, 430));
-        addSection ("PERFORMANCE", "TOUCH / BEND / SPREAD", lowerSection (500, 330));
-        addSection ("OUTPUT", "MASTER / FX / VU", lowerSection (840, 380));
+        addSection ("LFO", "SPEED / WAVE / DELAY / DEPTH",
+                    lowerSection (60, 440), ui::colour::slate, ui::SectionPanel::Decoration::lfo, 7);
+        addSection ("PERFORMANCE", "TOUCH / BEND / GLIDE / VINTAGE",
+                    lowerSection (516, 356), ui::colour::amberHot, ui::SectionPanel::Decoration::touch, 8);
+        addSection ("OUTPUT", "MASTER / TUNE / FX / VU",
+                    lowerSection (888, 412), ui::colour::cream, ui::SectionPanel::Decoration::output, 9);
     }
 
-    void addSection (const juce::String& title, const juce::String& subtitle, juce::Rectangle<int> bounds)
+    void addSection (const juce::String& title, const juce::String& subtitle,
+                     juce::Rectangle<int> bounds, juce::Colour accent,
+                     ui::SectionPanel::Decoration decoration, int number)
     {
-        auto section = std::make_unique<ui::SectionPanel> (title, subtitle);
+        auto section = std::make_unique<ui::SectionPanel> (title, subtitle, accent, decoration, number);
         section->setBounds (bounds);
         addAndMakeVisible (*section);
         sections.push_back (std::move (section));
@@ -238,62 +306,68 @@ private:
         };
 
         // VCO 1
-        fader (pid::vco1Level, { 68, 152, 56, 296 }, "LEVEL");
-        knob (pid::vco1Octave, { 126, 166, 70, 82 }, 38);
-        knob (pid::vco1Detune, { 126, 268, 70, 82 }, 38);
+        fader (pid::vco1Level, { 70, 204, 44, 338 }, "LEVEL");
+        fader (pid::vco1Sub, { 116, 204, 44, 338 }, "SUB");
+        knob (pid::vco1Octave, { 166, 212, 44, 78 }, 32, "OCT");
+        knob (pid::vco1Detune, { 166, 302, 44, 78 }, 32, "DETUNE");
 
         // VCO 2
-        fader (pid::vco2Level, { 218, 150, 50, 206 }, "LEVEL");
-        fader (pid::vco2Pw, { 270, 150, 50, 206 }, "PW");
-        knob (pid::vco2Octave, { 218, 372, 64, 78 }, 36, "OCT");
-        knob (pid::vco2Detune, { 284, 372, 64, 78 }, 36);
+        fader (pid::vco2Level, { 236, 204, 44, 338 }, "LEVEL");
+        fader (pid::vco2Pw, { 282, 204, 44, 338 }, "PW");
+        knob (pid::vco2Octave, { 338, 212, 44, 78 }, 32, "OCT");
+        knob (pid::vco2Detune, { 338, 302, 44, 78 }, 32, "DETUNE");
 
         // Ring modulator / noise
-        knob (pid::ring, { 385, 166, 98, 96 }, 52, "RING MOD");
-        knob (pid::noise, { 385, 300, 98, 96 }, 52);
+        knob (pid::ring, { 426, 216, 90, 112 }, 70, "RING MOD");
+        knob (pid::noise, { 434, 352, 74, 102 }, 54);
 
         // Filters
-        fader (pid::hpfCutoff, { 511, 152, 54, 296 }, "HP CUTOFF");
-        knob (pid::hpfRes, { 567, 158, 54, 84 }, 38, "HP RES");
-        fader (pid::lpfCutoff, { 625, 152, 54, 296 }, "LP CUTOFF");
-        knob (pid::lpfRes, { 681, 158, 54, 84 }, 38, "LP RES");
+        fader (pid::hpfCutoff, { 566, 204, 54, 338 }, "HP CUTOFF");
+        fader (pid::lpfCutoff, { 626, 204, 54, 338 }, "LP CUTOFF");
+        knob (pid::hpfRes, { 694, 212, 60, 92 }, 44, "HP RES");
+        knob (pid::lpfRes, { 758, 212, 60, 92 }, 44, "LP RES");
+        knob (pid::drive, { 694, 320, 60, 92 }, 44, "DRIVE");
+        knob (pid::filterTrack, { 758, 320, 60, 92 }, 44, "TRACK");
 
         // Filter envelope
         const char* filterIds[] = { pid::fIl, pid::fAl, pid::fA, pid::fD, pid::fS, pid::fR };
         const char* filterLabels[] = { "IL", "AL", "ATK", "DEC", "SUS", "REL" };
 
         for (int i = 0; i < 6; ++i)
-            fader (filterIds[i], { 769 + i * 39, 152, 37, 296 }, filterLabels[i]);
+            fader (filterIds[i], { 872 + i * 37, 204, 36, 338 }, filterLabels[i]);
 
         // Amp envelope
         const char* ampIds[] = { pid::aA, pid::aD, pid::aS, pid::aR };
 
         for (int i = 0; i < 4; ++i)
-            fader (ampIds[i], { 1026 + i * 48, 152, 45, 296 });
+            fader (ampIds[i], { 1136 + i * 40, 204, 36, 338 });
 
         // LFO
-        knob (pid::lfoRate, { 70, 508, 54, 92 }, 44, "SPEED");
-        choice (pid::lfoWave, { 126, 508, 68, 92 });
-        knob (pid::lfoDelay, { 196, 508, 54, 92 }, 44, "DELAY");
-        knob (pid::lfoPitch, { 252, 508, 54, 92 }, 44, "PITCH");
-        knob (pid::lfoPwm, { 308, 508, 54, 92 }, 44, "PWM");
-        knob (pid::lfoFilter, { 364, 508, 54, 92 }, 44, "FILTER");
-        knob (pid::lfoAmp, { 420, 508, 54, 92 }, 44, "TREM");
+        knob (pid::lfoRate, { 68, 606, 54, 96 }, 42, "SPEED");
+        choice (pid::lfoWave, { 126, 610, 72, 92 });
+        knob (pid::lfoDelay, { 200, 606, 54, 96 }, 42, "DELAY");
+        knob (pid::lfoPitch, { 256, 606, 54, 96 }, 42, "PITCH");
+        knob (pid::lfoPwm, { 310, 606, 54, 96 }, 42, "PWM");
+        knob (pid::lfoFilter, { 364, 606, 54, 96 }, 42, "FILTER");
+        knob (pid::lfoAmp, { 418, 606, 54, 96 }, 42, "TREM");
 
         // Performance
-        knob (pid::aftertouch, { 510, 508, 72, 92 }, 44);
-        knob (pid::bendRange, { 586, 508, 72, 92 }, 44, "BEND");
-        knob (pid::spread, { 662, 508, 72, 92 }, 44);
-        knob (pid::velocity, { 738, 508, 72, 92 }, 44);
+        knob (pid::aftertouch, { 526, 606, 54, 96 }, 42);
+        knob (pid::bendRange, { 582, 606, 54, 96 }, 42, "BEND");
+        knob (pid::spread, { 638, 606, 54, 96 }, 42);
+        knob (pid::velocity, { 694, 606, 54, 96 }, 42);
+        knob (pid::glide, { 750, 606, 54, 96 }, 42);
+        knob (pid::vintage, { 806, 606, 54, 96 }, 42, "VINTAGE");
 
         // Output
-        knob (pid::master, { 852, 508, 68, 92 }, 46);
-        knob (pid::brilliance, { 922, 508, 68, 92 }, 44, "BRILL");
-        knob (pid::ensemble, { 992, 508, 68, 92 }, 44);
-        knob (pid::space, { 1062, 508, 68, 92 }, 44);
+        knob (pid::master, { 898, 606, 54, 96 }, 46, "MASTER");
+        knob (pid::tune, { 954, 606, 54, 96 }, 42);
+        knob (pid::brilliance, { 1010, 606, 54, 96 }, 42, "BRILL");
+        knob (pid::ensemble, { 1066, 606, 54, 96 }, 42);
+        knob (pid::space, { 1122, 606, 54, 96 }, 42);
 
         auto meter = std::make_unique<ui::MeterDisplay> (processor.getEngine());
-        meter->setBounds (1140, 504, 30, 96);
+        meter->setBounds (1210, 600, 48, 106);
         addAndMakeVisible (*meter);
         controls.push_back (std::move (meter));
     }
@@ -327,7 +401,7 @@ Cs80Editor::Cs80Editor (Cs80AudioProcessor& processorToEdit)
     addAndMakeVisible (*content);
 
     setResizable (true, true);
-    setResizeLimits (960, 585, 2560, 1560);
+    setResizeLimits (1020, 660, 2720, 1760);
 
     if (auto* constrainer = getConstrainer())
         constrainer->setFixedAspectRatio ((double) designWidth / (double) designHeight);

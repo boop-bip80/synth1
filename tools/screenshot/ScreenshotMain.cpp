@@ -1,6 +1,6 @@
 // Offline renderer: instantiates the actual plugin editor and paints it into
-// PNGs, then renders a short demo WAV through the real processor. Runs on CI
-// under xvfb (or fully headless, since JUCE only needs a display for windows).
+// PNGs, then renders a demo WAV through the real processor. Runs on CI under
+// xvfb (or fully headless, since JUCE only needs a display for windows).
 
 #include "../../src/plugin/PluginEditor.h"
 
@@ -112,19 +112,21 @@ void renderDemoAudio (const juce::File& file)
         { 41, 48, 53, 56, 60 },
         { 43, 50, 55, 59, 62 },
         { 36, 48, 51, 55, 63 },
+        { 41, 53, 56, 60, 65 },
     };
 
     std::vector<NoteEvent> events;
-    constexpr double chordLength = 2.7;
+    constexpr double chordLength = 2.9;
 
     for (size_t i = 0; i < chords.size(); ++i)
     {
         const double start = 0.4 + (double) i * chordLength;
+        const float velocity = (i == chords.size() - 1) ? 0.82f : 0.70f;
 
         for (int note : chords[i])
         {
-            events.push_back ({ start, true, note, 0.72f });
-            events.push_back ({ start + chordLength - 0.55, false, note, 0.0f });
+            events.push_back ({ start, true, note, velocity });
+            events.push_back ({ start + chordLength - 0.48, false, note, 0.0f });
         }
     }
 
@@ -133,7 +135,7 @@ void renderDemoAudio (const juce::File& file)
         return a.time < b.time;
     });
 
-    const double totalSeconds = 0.4 + (double) chords.size() * chordLength + 2.2;
+    const double totalSeconds = 0.4 + (double) chords.size() * chordLength + 2.6;
     const int totalSamples = (int) std::ceil (totalSeconds * kSampleRate);
     juce::AudioBuffer<float> output (2, totalSamples);
     output.clear();
@@ -159,11 +161,16 @@ void renderDemoAudio (const juce::File& file)
             ++nextEvent;
         }
 
-        // A slow aftertouch swell on the last chord.
-        const float pressure = blockTime > 14.0 && blockTime < 16.8
-                                 ? (float) std::sin ((float) ((blockTime - 14.0) / 2.8) * juce::MathConstants<float>::pi)
-                                 : 0.0f;
-        processor.getEngine().setChannelPressure (pressure * 0.8f);
+        // Slow aftertouch swells on the later chords, which opens the filter
+        // and adds the CS-80's characteristic vocal pressure.
+        const float swell1 = blockTime > 9.0 && blockTime < 12.6
+                               ? (float) std::sin ((float) ((blockTime - 9.0) / 3.6) * juce::MathConstants<float>::pi)
+                               : 0.0f;
+        const float swell2 = blockTime > 15.6 && blockTime < 21.9
+                               ? (float) std::sin ((float) ((blockTime - 15.6) / 6.3) * juce::MathConstants<float>::pi)
+                               : 0.0f;
+        processor.getEngine().setChannelPressure (juce::jlimit (0.0f, 1.0f,
+                                                               std::max (swell1, swell2) * 0.85f));
 
         block.clear();
         juce::MidiBuffer empty;
@@ -214,13 +221,16 @@ int main (int argc, char** argv)
     std::printf ("CS-80E offline renderer\n");
 
     const std::vector<Shot> shots = {
-        { "01-blade-brass.png", 0, { 48, 55, 60, 63, 67 }, false, 0, 1.0f, {} },
-        { "02-vangelis-lead.png", 1, { 60, 63, 67, 70 }, false, 0, 1.0f, {} },
-        { "03-neon-pads.png", 2, { 41, 48, 55, 60, 63, 68 }, false, 0, 1.0f, {} },
-        { "04-preset-library.png", 3, { 48, 55, 60, 64 }, true, 2, 1.0f, {} },
-        { "05-brass-stab.png", 7, { 48, 55, 58, 63 }, false, 0, 1.0f, {} },
-        { "06-filter-closeup.png", 0, { 48, 55, 60, 63 }, false, 0, 2.0f,
-          juce::Rectangle<int> (500, 112, 510, 360) },
+        { "01-blade-brass.png", 0, { 36, 48, 51, 55, 62 }, false, 0, 1.35f, {} },
+        { "02-vangelis-lead.png", 1, { 60, 63, 67, 70 }, false, 0, 1.20f, {} },
+        { "03-neon-pads.png", 2, { 41, 48, 55, 60, 63, 68 }, false, 0, 1.20f, {} },
+        { "04-preset-library.png", 9, { 36, 48, 51, 55, 60, 63, 67 }, true, 13, 1.00f, {} },
+        { "05-brass-stab.png", 7, { 48, 55, 58, 63 }, false, 0, 1.20f, {} },
+        { "06-filter-closeup.png", 4, { 60, 64, 67 }, false, 0, 2.00f,
+          juce::Rectangle<int> (552, 164, 558, 392) },
+        { "07-ribbon-keybed.png", 0, { 48, 55, 60, 64 }, false, 0, 1.50f,
+          juce::Rectangle<int> (40, 700, 1280, 170) },
+        { "08-blade-runner.png", 9, { 36, 48, 51, 55, 60, 63 }, false, 0, 1.20f, {} },
     };
 
     for (const auto& shot : shots)

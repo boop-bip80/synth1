@@ -145,6 +145,12 @@ Params plainPatch()
     p.noise = 0.0f;
     p.vco2Level = 0.0f;
     p.vco1Level = 1.0f;
+    p.vco1Sub = 0.0f;
+    p.filterTrack = 0.0f;
+    p.drive = 0.25f;
+    p.glide = 0.0f;
+    p.tune = 0.0f;
+    p.vintage = 0.0f;
     p.hpfCutoff = 20.0f;
     p.hpfRes = 0.0f;
     p.lpfCutoff = 9000.0f;
@@ -210,7 +216,7 @@ void testPresets()
     std::printf ("- factory presets\n");
 
     const auto& presets = factoryPresets();
-    CHECK (presets.size() >= 8);
+    CHECK (presets.size() >= 16);
 
     std::set<std::string> names;
 
@@ -345,6 +351,103 @@ void testOctaveSwitch()
         std::printf ("    octave %.0f -> %.1f Hz (expected %.0f)\n", octave, frequency, expected);
         CHECK (std::abs (frequency - expected) < expected * 0.05f);
     }
+}
+
+void testSubOscillator()
+{
+    std::printf ("- sub oscillator tracks an octave below VCO 1\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    Params p = plainPatch();
+    p.vco1Level = 0.0f;
+    p.vco1Sub = 1.0f;
+    p.lpfCutoff = 3000.0f;
+    engine.setParams (p);
+    engine.noteOn (57, 1.0f); // A3 = 220 Hz; the sub should sit at 110 Hz
+
+    auto buffer = render (engine, 48000);
+    const float frequency = estimateFrequency (buffer.left, 48000.0);
+    std::printf ("    sub frequency %.1f Hz (expected 110)\n", frequency);
+    CHECK (std::abs (frequency - 110.0f) < 8.0f);
+}
+
+void testGlide()
+{
+    std::printf ("- polyphonic portamento glides between notes\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    Params p = plainPatch();
+    p.aR = 0.001f;
+    p.glide = 0.35f;
+    engine.setParams (p);
+
+    engine.noteOn (48, 1.0f); // C3
+    (void) render (engine, 4800);
+    engine.noteOff (48);
+    (void) render (engine, 4800);
+
+    engine.noteOn (60, 1.0f); // C4, glides up from C3
+    auto early = render (engine, 2400);
+    auto late = render (engine, 36000);
+
+    const float earlyFrequency = estimateFrequency (early.left, 48000.0);
+    const float lateFrequency = estimateFrequency (late.left, 48000.0);
+
+    std::printf ("    glide early %.1f Hz, settled %.1f Hz (expected 261.6)\n",
+                 earlyFrequency, lateFrequency);
+    CHECK (earlyFrequency < lateFrequency * 0.92f);
+    CHECK (std::abs (lateFrequency - 261.6f) < 261.6f * 0.05f);
+}
+
+void testMasterTune()
+{
+    std::printf ("- master tune\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    Params p = plainPatch();
+    p.tune = 50.0f;
+    engine.setParams (p);
+    engine.noteOn (69, 1.0f);
+
+    auto buffer = render (engine, 24000);
+    const float frequency = estimateFrequency (buffer.left, 48000.0);
+    const float expected = 440.0f * std::pow (2.0f, 50.0f / 1200.0f);
+    std::printf ("    A4 +50 ct -> %.1f Hz (expected %.1f)\n", frequency, expected);
+    CHECK (std::abs (frequency - expected) < expected * 0.02f);
+}
+
+void testVintageSpread()
+{
+    std::printf ("- vintage voice variance\n");
+
+    auto renderWithVintage = [] (float vintage)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = plainPatch();
+        p.vintage = vintage;
+        p.ensemble = 0.0f;
+        p.space = 0.0f;
+        p.spread = 0.0f;
+        engine.setParams (p);
+        engine.noteOn (60, 0.8f);
+        engine.noteOn (64, 0.8f);
+        return render (engine, 12000);
+    };
+
+    const auto clean = renderWithVintage (0.0f);
+    const auto aged = renderWithVintage (1.0f);
+
+    bool differs = false;
+    for (size_t i = 0; i < clean.left.size(); ++i)
+        if (std::abs (clean.left[i] - aged.left[i]) > 1.0e-4f)
+            differs = true;
+
+    CHECK (differs);
+    CHECK (allFinite (aged));
 }
 
 void testFilterBrightness()
@@ -500,6 +603,30 @@ void testDeterminism()
     const auto b = run();
     CHECK (std::memcmp (a.left.data(), b.left.data(), a.left.size() * sizeof (float)) == 0);
     CHECK (std::memcmp (a.right.data(), b.right.data(), a.right.size() * sizeof (float)) == 0);
+}
+
+void testHighDriveAndResonance()
+{
+    std::printf ("- high drive and resonance stay stable\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    Params p = plainPatch();
+    p.lpfRes = 1.0f;
+    p.hpfRes = 1.0f;
+    p.drive = 1.0f;
+    p.lpfCutoff = 220.0f;
+    p.ring = 0.8f;
+    p.noise = 0.5f;
+    engine.setParams (p);
+
+    for (int note : { 24, 36, 48, 60, 72, 84 })
+        engine.noteOn (note, 1.0f);
+
+    auto buffer = render (engine, 48000);
+    CHECK (allFinite (buffer));
+    CHECK (peakOf (buffer) <= 1.0f);
+    CHECK (rmsOf (buffer) > 0.001f);
 }
 
 void testExtremeSettings()
@@ -664,8 +791,10 @@ void testVoiceStealingIsSmooth()
     p.aR = 2.0f;
     engine.setParams (p);
 
-    for (int note = 48; note < 56; ++note)
-        engine.noteOn (note, 0.9f);
+    // One held voice makes the steal path measurable in isolation: the new
+    // note takes over the same voice, and the declick ramp should hand over
+    // at the old sample value with no edge.
+    engine.noteOn (48, 0.9f);
 
     const auto settled = render (engine, 24000, 64);
 
@@ -763,11 +892,16 @@ int main()
     testPolyphonyAndStealing();
     testTuning();
     testOctaveSwitch();
+    testSubOscillator();
+    testGlide();
+    testMasterTune();
+    testVintageSpread();
     testFilterBrightness();
     testStereoAndChorus();
     testReverbTail();
     testSustainPedal();
     testDeterminism();
+    testHighDriveAndResonance();
     testExtremeSettings();
     testScopeAndRetrigger();
     testAftertouch();

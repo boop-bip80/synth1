@@ -32,9 +32,70 @@ inline float fastTanh (float x) noexcept
     return x * (27.0f + x2) / (27.0f + 9.0f * x2);
 }
 
+/** Cubic soft clipper. Unlike tanh it has a finite, exactly integrable shape,
+    which lets the drive stage use antiderivative anti-aliasing below. */
+inline float softClip (float x) noexcept
+{
+    if (x > 1.0f)
+        return 2.0f / 3.0f;
+
+    if (x < -1.0f)
+        return -2.0f / 3.0f;
+
+    return x - x * x * x * (1.0f / 3.0f);
+}
+
+/** Integral of softClip(). Even function, so |x| is enough. */
+inline float softClipIntegral (float x) noexcept
+{
+    const float ax = std::abs (x);
+
+    if (ax <= 1.0f)
+    {
+        const float x2 = x * x;
+        return 0.5f * x2 - (x2 * x2) * (1.0f / 12.0f);
+    }
+
+    return (2.0f / 3.0f) * (ax - 1.0f) + 5.0f / 12.0f;
+}
+
+//==============================================================================
+/** First-order antiderivative anti-aliasing around softClip(). The drive
+    stages run at the host rate, so this keeps the harmonics they create from
+    folding back as the glassy "digital" fizz you hear in naive saturators. */
+struct SoftClipAdaa
+{
+    void reset() noexcept
+    {
+        previousInput = 0.0f;
+        previousIntegral = 0.0f;
+    }
+
+    float process (float x) noexcept
+    {
+        const float integral = softClipIntegral (x);
+        const float delta = x - previousInput;
+
+        const float out = std::abs (delta) > 1.0e-5f
+                            ? (integral - previousIntegral) / delta
+                            : softClip (x);
+
+        previousInput = x;
+        previousIntegral = integral;
+        return out;
+    }
+
+private:
+    float previousInput = 0.0f;
+    float previousIntegral = 0.0f;
+};
+
 //==============================================================================
 /** PolyBLEP saw/pulse oscillator. The correction band-limits the discontinuities,
-    which matters a lot when eight voices of saw and pulse stack up. */
+    which matters a lot when eight voices of saw and pulse stack up.
+
+    The pulse output is DC compensated, so changing the pulse width modulates
+    timbre rather than pushing a moving offset into the filter. */
 struct Oscillator
 {
     double phase = 0.0;
@@ -76,15 +137,14 @@ struct Oscillator
         float v = 2.0f * t - 1.0f;
         v -= polyBlep (t, dt);
 
-        phase += inc;
-        if (phase >= 1.0)
-            phase -= 1.0;
-
+        advance();
         return v;
     }
 
     float pulse (float width) noexcept
     {
+        width = clampf (width, 0.02f, 0.98f);
+
         const auto t = (float) phase;
         const auto dt = (float) inc;
         float v = t < width ? 1.0f : -1.0f;
@@ -96,17 +156,35 @@ struct Oscillator
 
         v -= polyBlep (t2, dt);
 
+        // Remove the width-dependent DC component.
+        v -= 2.0f * width - 1.0f;
+
+        advance();
+        return v;
+    }
+
+    /** A square exactly one octave below the main oscillator. */
+    float sub() noexcept
+    {
+        return pulse (0.5f);
+    }
+
+private:
+    void advance() noexcept
+    {
         phase += inc;
+
         if (phase >= 1.0)
             phase -= 1.0;
-
-        return v;
     }
 };
 
 //==============================================================================
-/** Topology-preserving state variable filter (12 dB/oct each output), with a
-    little feedback limiting so high resonance stays well behaved. */
+/** Topology-preserving state variable filter (12 dB/oct each output).
+
+    The TPT form stays stable at extreme resonance. In addition, the resonance
+    state can be softly saturated, which gives the filter the compression and
+    harmonic bloom of the CS-80's discrete core at high settings. */
 struct SVF
 {
     float g = 0.0f, k = 1.0f;
@@ -130,7 +208,7 @@ struct SVF
         a3 = g * a2;
     }
 
-    float lowpass (float in) noexcept
+    float lowpass (float in, float saturation = 0.0f) noexcept
     {
         const float v3 = in - ic2;
         const float v1 = a1 * ic1 + a2 * v3;
@@ -138,6 +216,9 @@ struct SVF
 
         ic1 = flushDenormal (2.0f * v1 - ic1);
         ic2 = flushDenormal (2.0f * v2 - ic2);
+
+        if (saturation > 0.0f)
+            ic1 = softClip (ic1 * saturation) / saturation;
 
         if (! std::isfinite (ic1) || ! std::isfinite (ic2))
             reset();
@@ -145,7 +226,7 @@ struct SVF
         return v2;
     }
 
-    float highpass (float in) noexcept
+    float highpass (float in, float saturation = 0.0f) noexcept
     {
         const float v3 = in - ic2;
         const float v1 = a1 * ic1 + a2 * v3;
@@ -153,6 +234,9 @@ struct SVF
 
         ic1 = flushDenormal (2.0f * v1 - ic1);
         ic2 = flushDenormal (2.0f * v2 - ic2);
+
+        if (saturation > 0.0f)
+            ic1 = softClip (ic1 * saturation) / saturation;
 
         if (! std::isfinite (ic1) || ! std::isfinite (ic2))
             reset();
@@ -164,7 +248,10 @@ struct SVF
 //==============================================================================
 /** Segment based envelope with the CS-80 style pair of levels: it can start at
     an arbitrary initial value (filter IL), climb to an attack level and settle
-    on a sustain level. The amp envelope simply uses initial=0, attack=1. */
+    on a sustain level. The amp envelope simply uses initial=0, attack=1.
+
+    Time scaling exists so each voice can have its own slightly different
+    envelope timing, the way eight analogue voice cards never match exactly. */
 class Envelope
 {
 public:
@@ -189,6 +276,17 @@ public:
         attackTime = attackSeconds;
         decayTime = decaySeconds;
         releaseTime = releaseSeconds;
+        updateCoefficients();
+    }
+
+    void setTimeScale (float scale) noexcept
+    {
+        scale = clampf (scale, 0.5f, 2.0f);
+
+        if (std::abs (scale - timeScale) < 1.0e-4f)
+            return;
+
+        timeScale = scale;
         updateCoefficients();
     }
 
@@ -294,12 +392,13 @@ private:
 
     float coefficientFor (float seconds) const noexcept
     {
-        return clampf (std::exp (-5.0f / (seconds * (float) sampleRate)), 0.0f, 0.99999f);
+        const float scaled = seconds * timeScale;
+        return clampf (std::exp (-5.0f / (scaled * (float) sampleRate)), 0.0f, 0.99999f);
     }
 
     uint64_t samplesFor (float seconds) const noexcept
     {
-        return (uint64_t) std::max (1.0f, seconds * (float) sampleRate);
+        return (uint64_t) std::max (1.0f, seconds * timeScale * (float) sampleRate);
     }
 
     void updateCoefficients() noexcept
@@ -317,6 +416,7 @@ private:
     float releaseTime = 0.4f;
     float attackTarget = 1.0f;
     float sustain = 0.8f;
+    float timeScale = 1.0f;
 
     float attackCoefficient = 0.0f;
     float decayCoefficient = 0.0f;

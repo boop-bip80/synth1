@@ -6,28 +6,32 @@ namespace cs80::ui
 {
 namespace colour
 {
-inline const juce::Colour windowBg    { 0xff060709 };
-inline const juce::Colour woodDark    { 0xff2a1408 };
-inline const juce::Colour woodMid     { 0xff6b3a1a };
-inline const juce::Colour woodLight   { 0xffa9743f };
-inline const juce::Colour panelTop    { 0xff2f343b };
-inline const juce::Colour panelBottom { 0xff121519 };
-inline const juce::Colour plateTop    { 0xff2b3038 };
-inline const juce::Colour plateBottom { 0xff181b20 };
-inline const juce::Colour line        { 0xff3d444e };
-inline const juce::Colour shadow      { 0xff06080a };
-inline const juce::Colour text        { 0xffd5d9e0 };
-inline const juce::Colour textDim     { 0xff9ba1ab };
-inline const juce::Colour textFaint   { 0xff6d7480 };
-inline const juce::Colour amber       { 0xffff9d3c };
-inline const juce::Colour amberHot    { 0xffffd39a };
-inline const juce::Colour amberDim    { 0xff7a451a };
-inline const juce::Colour lcdBg       { 0xff140d05 };
-inline const juce::Colour lcdText     { 0xffffb45a };
-inline const juce::Colour red         { 0xffe0533f };
-inline const juce::Colour green       { 0xff7fce9b };
-inline const juce::Colour steel       { 0xff9aa1ab };
-inline const juce::Colour keyIvory    { 0xffe9e2d3 };
+inline const juce::Colour windowBg    { 0xff050608 };
+inline const juce::Colour woodDark    { 0xff190b04 };
+inline const juce::Colour woodMid     { 0xff48230f };
+inline const juce::Colour woodLight   { 0xff98602c };
+inline const juce::Colour panelTop    { 0xff1b242d };
+inline const juce::Colour panelBottom { 0xff070a0d };
+inline const juce::Colour plateTop    { 0xff161d24 };
+inline const juce::Colour plateBottom { 0xff0a0f14 };
+inline const juce::Colour line        { 0xff2b353f };
+inline const juce::Colour shadow      { 0xff020304 };
+inline const juce::Colour text        { 0xffe9dfcd };
+inline const juce::Colour textDim     { 0xffa89b86 };
+inline const juce::Colour textFaint   { 0xff6d6558 };
+inline const juce::Colour amber       { 0xffffb257 };
+inline const juce::Colour amberHot    { 0xffffe0b0 };
+inline const juce::Colour amberDim    { 0xff7d4d1c };
+inline const juce::Colour lcdBg       { 0xff0b0804 };
+inline const juce::Colour lcdText     { 0xffffbe6e };
+inline const juce::Colour red         { 0xffd95a3e };
+inline const juce::Colour green       { 0xff91b89a };
+inline const juce::Colour steel       { 0xff8d96a1 };
+inline const juce::Colour keyIvory    { 0xffe6dcc8 };
+inline const juce::Colour cream       { 0xfff2e7d0 };
+inline const juce::Colour copper      { 0xffd98a52 };
+inline const juce::Colour sage        { 0xff9db88d };
+inline const juce::Colour slate       { 0xff8ba9bd };
 } // namespace colour
 
 //==============================================================================

@@ -26,8 +26,8 @@ public:
     void setPresetBrowserHoverForSnapshot (int row);
     void refreshForSnapshot();
 
-    static constexpr int designWidth = 1280;
-    static constexpr int designHeight = 780;
+    static constexpr int designWidth = 1360;
+    static constexpr int designHeight = 880;
 
 private:
     class Content;

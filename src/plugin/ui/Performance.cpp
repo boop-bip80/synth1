@@ -17,19 +17,30 @@ ScopeDisplay::ScopeDisplay (const Engine& engineToUse) : engine (engineToUse)
 void ScopeDisplay::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    drawInsetWell (g, bounds, 3.0f);
+    drawPlate (g, bounds, 4.0f);
 
-    auto inner = bounds.reduced (5.0f, 4.0f);
+    auto screen = bounds.reduced (5.0f, 5.0f);
+    drawInsetWell (g, screen, 2.5f);
 
-    // Phosphor grid.
-    g.setColour (colour::amber.withAlpha (0.10f));
+    // Warm glass.
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff261708),
+                                             screen.getCentreX(), screen.getY(),
+                                             juce::Colour (0xff090602),
+                                             screen.getCentreX(), screen.getBottom(), false));
+    g.fillRoundedRectangle (screen.reduced (1.0f), 2.0f);
+
+    drawGlow (g, screen.getCentre(), screen.getWidth() * 0.55f, colour::amber, 0.14f);
+
+    auto inner = screen.reduced (7.0f, 6.0f);
+
+    g.setColour (colour::amber.withAlpha (0.12f));
     for (int i = 1; i < 4; ++i)
         g.drawLine (inner.getX(), inner.getY() + inner.getHeight() * (float) i / 4.0f,
-                    inner.getRight(), inner.getY() + inner.getHeight() * (float) i / 4.0f, 0.7f);
+                    inner.getRight(), inner.getY() + inner.getHeight() * (float) i / 4.0f, 0.6f);
 
     for (int i = 1; i < 6; ++i)
         g.drawLine (inner.getX() + inner.getWidth() * (float) i / 6.0f, inner.getY(),
-                    inner.getX() + inner.getWidth() * (float) i / 6.0f, inner.getBottom(), 0.7f);
+                    inner.getX() + inner.getWidth() * (float) i / 6.0f, inner.getBottom(), 0.6f);
 
     std::array<float, 512> samples {};
     engine.readScope (samples.data(), (int) samples.size());
@@ -48,17 +59,17 @@ void ScopeDisplay::paint (juce::Graphics& g)
 
     if (count > 4)
     {
-        g.setColour (colour::amber.withAlpha (0.14f));
-        g.drawLine (inner.getX(), inner.getCentreY(), inner.getRight(), inner.getCentreY(), 0.7f);
+        g.setColour (colour::amber.withAlpha (0.15f));
+        g.drawLine (inner.getX(), inner.getCentreY(), inner.getRight(), inner.getCentreY(), 0.6f);
 
         juce::Path trace;
         const float midY = inner.getCentreY();
-        const float amplitude = inner.getHeight() * 0.36f;
+        const float amplitude = inner.getHeight() * 0.37f;
 
         for (int i = 0; i < count; ++i)
         {
             const float x = inner.getX() + (float) i / (float) (count - 1) * inner.getWidth();
-            const float y = midY - juce::jlimit (-1.0f, 1.0f, samples[(size_t) (start + i)] * 1.8f) * amplitude;
+            const float y = midY - juce::jlimit (-1.0f, 1.0f, samples[(size_t) (start + i)] * 1.9f) * amplitude;
 
             if (i == 0)
                 trace.startNewSubPath (x, y);
@@ -66,33 +77,42 @@ void ScopeDisplay::paint (juce::Graphics& g)
                 trace.lineTo (x, y);
         }
 
-        g.setColour (colour::amber.withAlpha (0.10f));
-        g.strokePath (trace, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved,
+        g.setColour (colour::amber.withAlpha (0.09f));
+        g.strokePath (trace, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
-        g.setColour (colour::amber.withAlpha (0.35f));
-        g.strokePath (trace, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved,
+        g.setColour (colour::amber.withAlpha (0.30f));
+        g.strokePath (trace, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
-        g.setColour (colour::amberHot.withAlpha (0.95f));
-        g.strokePath (trace, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved,
+        g.setColour (colour::amberHot.withAlpha (0.98f));
+        g.strokePath (trace, juce::PathStrokeType (1.15f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
-
-        // Scanline sheen.
-        // Scanline sheen.
-        g.setColour (juce::Colours::black.withAlpha (0.10f));
-        for (float y = inner.getY(); y < inner.getBottom(); y += 3.0f)
-            g.drawLine (inner.getX(), y, inner.getRight(), y, 0.6f);
 
         const float endX = inner.getRight() - 2.0f;
-        drawGlow (g, { endX, midY }, 8.0f, colour::amberHot, 0.5f);
+        drawGlow (g, { endX, midY }, 10.0f, colour::amberHot, 0.55f);
         g.setColour (colour::amberHot);
-        g.fillEllipse (endX - 1.5f, midY - 1.5f, 3.0f, 3.0f);
+        g.fillEllipse (endX - 1.6f, midY - 1.6f, 3.2f, 3.2f);
     }
 
-    drawTrackedText (g, "POST FX", { (int) inner.getRight() - 58, (int) inner.getBottom() - 11, 54, 9 },
-                     colour::amberDim.brighter (0.35f), juce::Justification::centredRight,
-                     monoFont (6.0f), 0.6f);
+    // Scanlines and a soft glass reflection.
+    g.setColour (juce::Colours::black.withAlpha (0.10f));
+    for (float y = inner.getY(); y < inner.getBottom(); y += 3.0f)
+        g.drawLine (inner.getX(), y, inner.getRight(), y, 0.55f);
+
+    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.07f),
+                                             screen.getCentreX(), screen.getY(),
+                                             juce::Colours::transparentWhite,
+                                             screen.getCentreX(), screen.getY() + screen.getHeight() * 0.36f, false));
+    g.fillRoundedRectangle (screen.reduced (1.0f), 2.0f);
+
+    drawTrackedText (g, "OUTPUT", { (int) inner.getX(), (int) inner.getY() - 1, 60, 8 },
+                     colour::amberDim.brighter (0.55f), juce::Justification::centredLeft,
+                     monoFont (5.8f, true), 0.5f);
+
+    drawTrackedText (g, "POST FX", { (int) inner.getRight() - 48, (int) inner.getBottom() - 8, 48, 7 },
+                     colour::amberDim.brighter (0.50f), juce::Justification::centredRight,
+                     monoFont (5.4f), 0.4f);
 }
 
 //==============================================================================
@@ -105,16 +125,29 @@ MeterDisplay::MeterDisplay (const Engine& engineToUse) : engine (engineToUse)
 void MeterDisplay::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    drawInsetWell (g, bounds, 3.0f);
+    drawPlate (g, bounds, 3.0f);
 
-    constexpr int segments = 16;
+    const auto well = bounds.reduced (3.0f, 3.0f).withTrimmedTop (11.0f).withTrimmedBottom (13.0f);
+    drawInsetWell (g, well, 2.0f);
+
+    drawTrackedText (g, "VU", { (int) bounds.getX(), (int) bounds.getY() + 2, (int) bounds.getWidth(), 8 },
+                     colour::textFaint, juce::Justification::centred, monoFont (5.8f, true), 0.4f);
+
+    constexpr int segments = 18;
     const float barWidth = 6.0f;
-    const float gap = 6.0f;
+    const float gap = 5.0f;
     const float totalWidth = barWidth * 2.0f + gap;
-    const float startX = bounds.getCentreX() - totalWidth * 0.5f;
-    const float top = bounds.getY() + 4.0f;
-    const float usableHeight = bounds.getHeight() - 18.0f;
+    const float startX = well.getCentreX() - totalWidth * 0.5f;
+    const float usableHeight = well.getHeight() - 2.0f;
     const float segmentHeight = usableHeight / (float) segments;
+
+    // Scale ticks.
+    g.setColour (juce::Colours::white.withAlpha (0.12f));
+    for (int i = 0; i <= 4; ++i)
+    {
+        const float y = well.getBottom() - 1.0f - usableHeight * (float) i / 4.0f;
+        g.drawLine (well.getX() - 2.0f, y, well.getX(), y, 0.7f);
+    }
 
     for (int channel = 0; channel < 2; ++channel)
     {
@@ -124,21 +157,22 @@ void MeterDisplay::paint (juce::Graphics& g)
 
         for (int i = 0; i < segments; ++i)
         {
-            const float y = top + usableHeight - (float) (i + 1) * segmentHeight;
+            const float y = well.getBottom() - 1.0f - (float) (i + 1) * segmentHeight;
             const bool on = i < lit;
             const float position = (float) i / (float) segments;
 
-            auto segmentColour = colour::amber;
-            if (position > 0.82f) segmentColour = colour::red;
-            else if (position > 0.65f) segmentColour = colour::amberHot;
+            auto segmentColour = colour::green;
+            if (position > 0.88f) segmentColour = colour::red;
+            else if (position > 0.66f) segmentColour = colour::amber;
+            else if (position > 0.40f) segmentColour = colour::sage;
 
-            g.setColour (on ? segmentColour : juce::Colour (0xff1d2126));
+            g.setColour (on ? segmentColour : juce::Colour (0xff171d23));
             g.fillRoundedRectangle (startX + (float) channel * (barWidth + gap), y,
-                                    barWidth, segmentHeight - 1.6f, 1.0f);
+                                    barWidth, segmentHeight - 1.4f, 0.8f);
 
             if (on)
             {
-                g.setColour (segmentColour.withAlpha (0.18f));
+                g.setColour (segmentColour.withAlpha (0.16f));
                 g.fillRoundedRectangle (startX + (float) channel * (barWidth + gap) - 1.0f, y - 0.5f,
                                         barWidth + 2.0f, segmentHeight, 1.2f);
             }
@@ -146,8 +180,8 @@ void MeterDisplay::paint (juce::Graphics& g)
 
         drawTrackedText (g, channel == 0 ? "L" : "R",
                          { (int) (startX + (float) channel * (barWidth + gap) - 2.0f),
-                           (int) (bounds.getBottom() - 13.0f), (int) barWidth + 4, 9 },
-                         colour::textDim, juce::Justification::centred, monoFont (6.5f, true), 0.2f);
+                           (int) (bounds.getBottom() - 12.0f), (int) barWidth + 4, 8 },
+                         colour::textDim, juce::Justification::centred, monoFont (5.8f, true), 0.1f);
     }
 }
 
@@ -162,21 +196,31 @@ RibbonStrip::RibbonStrip (Cs80AudioProcessor& processorToUse) : processor (proce
 void RibbonStrip::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    drawInsetWell (g, bounds.reduced (0.0f, 2.0f), 4.0f);
+    drawInsetWell (g, bounds, 3.0f);
 
-    auto rail = bounds.reduced (10.0f, 7.0f);
-    rail.setHeight (rail.getHeight() - 2.0f);
+    auto rail = bounds.reduced (12.0f, 6.0f);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff120d0a), rail.getCentreX(), rail.getY(),
-                                             juce::Colour (0xff2b1a12), rail.getCentreX(), rail.getBottom(), false));
-    g.fillRoundedRectangle (rail, 3.0f);
+    // Brushed bronze strip, like the CS-80's ribbon controller.
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff6a4725), rail.getCentreX(), rail.getY(),
+                                             juce::Colour (0xff180d06), rail.getCentreX(), rail.getBottom(), false));
+    g.fillRoundedRectangle (rail, 2.5f);
 
-    g.setColour (juce::Colours::black.withAlpha (0.7f));
-    g.drawRoundedRectangle (rail.reduced (0.5f), 3.0f, 1.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffd3a065).withAlpha (0.40f),
+                                             rail.getCentreX(), rail.getY(),
+                                             juce::Colours::transparentBlack,
+                                             rail.getCentreX(), rail.getCentreY(), false));
+    g.fillRoundedRectangle (rail.reduced (1.0f), 2.0f);
+
+    g.setColour (juce::Colour (0xffd9ab6c).withAlpha (0.34f));
+    g.drawLine (rail.getX() + 4.0f, rail.getY() + 1.0f,
+                rail.getRight() - 4.0f, rail.getY() + 1.0f, 0.9f);
+
+    g.setColour (juce::Colours::black.withAlpha (0.8f));
+    g.drawRoundedRectangle (rail.reduced (0.5f), 2.5f, 1.0f);
 
     // Etched centre detent and travel ticks.
     const float centreX = rail.getCentreX();
-    g.setColour (juce::Colours::white.withAlpha (0.09f));
+    g.setColour (juce::Colours::white.withAlpha (0.10f));
     for (int i = -6; i <= 6; ++i)
     {
         const float x = centreX + (float) i / 6.0f * rail.getWidth() * 0.46f;
@@ -185,6 +229,13 @@ void RibbonStrip::paint (juce::Graphics& g)
                     x, rail.getCentreY() + tickHeight * 0.5f, 0.7f);
     }
 
+    g.setColour (colour::amber.withAlpha (0.30f));
+    g.drawLine (centreX, rail.getY() + 3.0f, centreX, rail.getBottom() - 3.0f, 0.8f);
+
+    // A thin red felt centre marker.
+    g.setColour (colour::red.withAlpha (0.65f));
+    g.fillRect (centreX - 0.8f, rail.getY() + 2.0f, 1.6f, 4.0f);
+
     const float thumbX = centreX + value * rail.getWidth() * 0.47f;
 
     if (std::abs (value) > 0.001f)
@@ -192,43 +243,47 @@ void RibbonStrip::paint (juce::Graphics& g)
         juce::Path trail;
         trail.addRoundedRectangle (juce::jmin (centreX, thumbX), rail.getCentreY() - 2.0f,
                                    std::abs (thumbX - centreX), 4.0f, 2.0f);
-        g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.15f), centreX, 0.0f,
-                                                 colour::amber.withAlpha (0.75f), thumbX, 0.0f, false));
+        g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.12f), centreX, 0.0f,
+                                                 colour::amber.withAlpha (0.80f), thumbX, 0.0f, false));
         g.fillPath (trail);
     }
 
-    const auto thumb = juce::Rectangle<float> (16.0f, rail.getHeight() + 10.0f)
+    const auto thumb = juce::Rectangle<float> (18.0f, rail.getHeight() + 10.0f)
                            .withCentre ({ thumbX, rail.getCentreY() });
 
     g.setColour (juce::Colours::black.withAlpha (0.55f));
     g.fillRoundedRectangle (thumb.translated (0.0f, 1.5f), 3.0f);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff8b939d), thumb.getCentreX(), thumb.getY(),
-                                             juce::Colour (0xff2a2e34), thumb.getCentreX(), thumb.getBottom(), false));
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff7ecd8), thumb.getCentreX(), thumb.getY(),
+                                             juce::Colour (0xffb4a58c), thumb.getCentreX(), thumb.getBottom(), false));
     g.fillRoundedRectangle (thumb, 3.0f);
 
-    g.setColour (juce::Colours::white.withAlpha (0.25f));
-    g.drawRoundedRectangle (thumb.reduced (0.5f), 3.0f, 0.8f);
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.drawRoundedRectangle (thumb.reduced (0.5f), 3.0f, 0.9f);
 
-    g.setColour (colour::amber.withAlpha (dragging ? 0.95f : 0.6f));
-    g.fillRect (thumb.getCentreX() - 0.6f, thumb.getY() + 4.0f, 1.2f, thumb.getHeight() - 8.0f);
+    g.setColour (colour::amberDim);
+    g.fillRect (thumb.getCentreX() - 0.7f, thumb.getY() + 3.0f, 1.4f, thumb.getHeight() - 6.0f);
 
-    drawTrackedText (g, "RIBBON", { 14, 3, 70, 10 }, colour::textDim.brighter (0.15f),
-                     juce::Justification::centredLeft, trackedFont (6.8f, 1.4f, true), 0.3f);
+    drawTrackedText (g, "PITCH RIBBON", { 18, 3, 90, 10 }, colour::textDim.brighter (0.12f),
+                     juce::Justification::centredLeft, trackedFont (6.6f, 1.4f, true), 0.3f);
 
     const auto semitones = value * 12.0f;
     const juce::String readout = (semitones >= 0.0f ? "+" : "")
                                + juce::String (semitones, 1) + " ST";
 
-    drawTrackedText (g, readout, { getWidth() - 88, 3, 74, 10 },
+    drawTrackedText (g, readout, { getWidth() - 90, 3, 72, 10 },
                      dragging ? colour::amberHot : colour::textDim,
-                     juce::Justification::centredRight, monoFont (7.0f, true), 0.3f);
+                     juce::Justification::centredRight, monoFont (6.8f, true), 0.3f);
+
+    drawTrackedText (g, "TOUCH + BEND", { getWidth() - 172, 3, 74, 10 },
+                     colour::textFaint, juce::Justification::centredRight,
+                     monoFont (5.5f), 0.2f);
 }
 
 void RibbonStrip::setFromMouse (float x)
 {
-    const float railLeft = 12.0f;
-    const float railWidth = (float) getWidth() - 24.0f;
+    const float railLeft = 14.0f;
+    const float railWidth = (float) getWidth() - 28.0f;
     const float centre = railLeft + railWidth * 0.5f;
     const float normalised = (x - centre) / (railWidth * 0.47f);
     value = juce::jlimit (-1.0f, 1.0f, normalised);
@@ -301,7 +356,7 @@ void Cs80Keyboard::resized()
     constexpr int highNote = 72;
     constexpr int whiteCount = 22;
 
-    const float railHeight = 9.0f;
+    const float railHeight = 10.0f;
     const float keyTop = railHeight + 2.0f;
     const float keyHeight = (float) getHeight() - keyTop - 2.0f;
     const float whiteWidth = (float) getWidth() / (float) whiteCount;
@@ -347,7 +402,7 @@ int Cs80Keyboard::noteAt (juce::Point<float> position) const
 
 float Cs80Keyboard::velocityAt (float y) const
 {
-    const float railHeight = 11.0f;
+    const float railHeight = 12.0f;
     const float keyHeight = juce::jmax (1.0f, (float) getHeight() - railHeight - 2.0f);
     const float normalised = juce::jlimit (0.0f, 1.0f, (y - railHeight) / keyHeight);
     return 0.35f + 0.65f * normalised;
@@ -422,53 +477,63 @@ void Cs80Keyboard::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
 
-    // Felt / wood rail above the keys.
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff3a2314), 0.0f, 0.0f,
-                                             juce::Colour (0xff1e1109), 0.0f, 9.0f, false));
-    g.fillRect (bounds.withHeight (9.0f));
-    g.setColour (juce::Colours::black.withAlpha (0.75f));
-    g.drawLine (0.0f, 9.0f, bounds.getRight(), 9.0f, 1.0f);
-    g.setColour (colour::amber.withAlpha (0.10f));
-    g.drawLine (0.0f, 0.5f, bounds.getRight(), 0.5f, 1.0f);
+    // Walnut rail above the keys, with a small engraved nameplate.
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff4b2814), 0.0f, 0.0f,
+                                             juce::Colour (0xff1b0c05), 0.0f, 10.0f, false));
+    g.fillRect (bounds.withHeight (10.0f));
+    g.setColour (juce::Colours::black.withAlpha (0.78f));
+    g.drawLine (0.0f, 10.0f, bounds.getRight(), 10.0f, 1.0f);
+    g.setColour (colour::amber.withAlpha (0.12f));
+    g.drawLine (0.0f, 0.6f, bounds.getRight(), 0.6f, 0.9f);
+
+    drawTrackedText (g, "CS-80E  /  KEYBED", { 8, 1, 140, 8 },
+                     colour::amberDim.brighter (0.55f), juce::Justification::centredLeft,
+                     monoFont (5.4f), 0.3f);
+
+    drawTrackedText (g, "VELOCITY SENSITIVE  /  36 - 72", { getWidth() - 190, 1, 182, 8 },
+                     colour::textFaint, juce::Justification::centredRight,
+                     monoFont (5.2f), 0.2f);
 
     // White keys.
     for (const auto& key : whiteKeys)
     {
         const bool down = state.isNoteOnForChannels (0xffff, key.note);
 
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.fillRoundedRectangle (key.bounds.translated (0.0f, 1.5f), 2.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.fillRoundedRectangle (key.bounds.translated (0.0f, 1.8f), 2.0f);
 
-        g.setGradientFill (juce::ColourGradient (down ? juce::Colour (0xfff3c98d) : colour::keyIvory,
+        g.setGradientFill (juce::ColourGradient (down ? juce::Colour (0xfff0c184) : juce::Colour (0xfff2e8d6),
                                                  key.bounds.getCentreX(), key.bounds.getY(),
-                                                 down ? juce::Colour (0xffc98a3f) : juce::Colour (0xffcfc5b2),
+                                                 down ? juce::Colour (0xffbd8340) : juce::Colour (0xffcfc2ac),
                                                  key.bounds.getCentreX(), key.bounds.getBottom(), false));
         g.fillRoundedRectangle (key.bounds, 2.0f);
 
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.setColour (juce::Colours::black.withAlpha (0.40f));
         g.drawRoundedRectangle (key.bounds.reduced (0.5f), 2.0f, 1.0f);
 
-        g.setColour (juce::Colours::white.withAlpha (0.35f));
+        g.setColour (juce::Colours::white.withAlpha (0.40f));
         g.drawLine (key.bounds.getX() + 2.0f, key.bounds.getY() + 1.0f,
                     key.bounds.getX() + 2.0f, key.bounds.getBottom() - 3.0f, 0.8f);
 
-        // Front lip that catches the light.
-        g.setColour (juce::Colours::black.withAlpha (0.22f));
-        g.fillRoundedRectangle (key.bounds.withTop (key.bounds.getBottom() - 3.0f).reduced (1.0f, 0.0f), 1.5f);
+        // Felt shadow at the front of the key.
+        g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
+                                                 key.bounds.getCentreX(), key.bounds.getBottom() - 16.0f,
+                                                 juce::Colours::black.withAlpha (0.22f),
+                                                 key.bounds.getCentreX(), key.bounds.getBottom(), false));
+        g.fillRoundedRectangle (key.bounds, 2.0f);
 
         if (down)
             drawGlow (g, { key.bounds.getCentreX(), key.bounds.getCentreY() },
-                      key.bounds.getWidth() * 0.7f, colour::amber, 0.35f);
+                      key.bounds.getWidth() * 0.8f, colour::amber, 0.30f);
 
-        // Octave labels on C keys.
         if (key.note % 12 == 0)
         {
             drawTrackedText (g, "C" + juce::String (key.note / 12 - 1),
-                             key.bounds.withTrimmedTop (key.bounds.getHeight() - 16.0f)
-                                 .withHeight (12.0f)
+                             key.bounds.withTrimmedTop (key.bounds.getHeight() - 15.0f)
+                                 .withHeight (11.0f)
                                  .toNearestInt(),
-                             down ? juce::Colour (0xff4a2c0c) : juce::Colour (0xff6b5a45),
-                             juce::Justification::centred, monoFont (9.0f, true), 0.2f);
+                             down ? juce::Colour (0xff4a2c0c) : juce::Colour (0xff6d5b45),
+                             juce::Justification::centred, monoFont (8.0f, true), 0.2f);
         }
     }
 
@@ -477,16 +542,16 @@ void Cs80Keyboard::paint (juce::Graphics& g)
     {
         const bool down = state.isNoteOnForChannels (0xffff, key.note);
 
-        g.setColour (juce::Colours::black.withAlpha (0.6f));
-        g.fillRoundedRectangle (key.bounds.translated (0.0f, 2.0f), 2.5f);
+        g.setColour (juce::Colours::black.withAlpha (0.65f));
+        g.fillRoundedRectangle (key.bounds.translated (0.0f, 2.2f), 2.5f);
 
-        g.setGradientFill (juce::ColourGradient (down ? juce::Colour (0xff8a5420) : juce::Colour (0xff33373d),
+        g.setGradientFill (juce::ColourGradient (down ? juce::Colour (0xff8a5420) : juce::Colour (0xff3a4046),
                                                  key.bounds.getX(), key.bounds.getY(),
-                                                 down ? juce::Colour (0xff3a2208) : juce::Colour (0xff08090b),
+                                                 down ? juce::Colour (0xff2d1a06) : juce::Colour (0xff07090b),
                                                  key.bounds.getX(), key.bounds.getBottom(), false));
         g.fillRoundedRectangle (key.bounds, 2.5f);
 
-        g.setColour (juce::Colours::white.withAlpha (0.16f));
+        g.setColour (juce::Colours::white.withAlpha (0.20f));
         g.drawLine (key.bounds.getX() + 2.0f, key.bounds.getY() + 2.0f,
                     key.bounds.getRight() - 2.0f, key.bounds.getY() + 2.0f, 0.9f);
 
@@ -495,10 +560,10 @@ void Cs80Keyboard::paint (juce::Graphics& g)
 
         if (down)
         {
-            g.setColour (colour::amber.withAlpha (0.8f));
+            g.setColour (colour::amber.withAlpha (0.85f));
             g.fillRoundedRectangle (key.bounds.withTop (key.bounds.getBottom() - 4.0f).reduced (1.0f, 0.0f), 1.5f);
             drawGlow (g, { key.bounds.getCentreX(), key.bounds.getBottom() - 6.0f },
-                      12.0f, colour::amber, 0.35f);
+                      13.0f, colour::amber, 0.35f);
         }
     }
 }

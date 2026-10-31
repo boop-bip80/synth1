@@ -102,7 +102,7 @@ jobs:
           command -v python3 >/dev/null 2>&1 || PY=python
           "$PY" -c "import shutil; shutil.make_archive('dist/CS-80E-${{ matrix.label }}', 'zip', 'dist/pkg')"
           ls -lh dist
-          "$PY" -c "import zipfile; z=zipfile.ZipFile('dist/CS-80E-${{ matrix.label }}.zip'); print('\n'.join(z.namelist()[:12]))"
+          "$PY" -c "import zipfile; z=zipfile.ZipFile('dist/CS-80E-${{ matrix.label }}.zip'); print('\\n'.join(z.namelist()[:12]))"
 
       - name: Upload build
         uses: actions/upload-artifact@v4
@@ -115,8 +115,12 @@ jobs:
   screenshots:
     name: Screenshots & demo render
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install render dependencies
         run: |
@@ -150,8 +154,15 @@ jobs:
           python3 - <<'PY'
           import pathlib
 
+          expected = [
+              "01-blade-brass.png", "02-vangelis-lead.png", "03-neon-pads.png",
+              "04-preset-library.png", "05-brass-stab.png", "06-filter-closeup.png",
+              "07-ribbon-keybed.png", "08-blade-runner.png",
+          ]
+
           shots = sorted(pathlib.Path("docs/screenshots").glob("*.png"))
-          assert len(shots) == 6, f"expected 6 screenshots, found {len(shots)}"
+          names = [shot.name for shot in shots]
+          assert names == expected, f"expected {expected}, found {names}"
 
           for shot in shots:
               size = shot.stat().st_size
@@ -174,6 +185,19 @@ jobs:
             docs/audio
           if-no-files-found: error
           retention-days: 30
+
+      - name: Refresh committed renders on main
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots docs/audio
+          if git diff --cached --quiet; then
+            echo "Renders are unchanged."
+          else
+            git commit -m "Refresh panel renders and demo [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
   pluginval:
     name: VST3 validation (pluginval)
@@ -228,8 +252,57 @@ jobs:
           path: pluginval.log
           if-no-files-found: warn
 
+  publish-latest:
+    name: Refresh latest downloads
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: [build, screenshots]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect downloads and checksums
+        run: |
+          mkdir -p release
+          find artifacts -maxdepth 2 -name '*.zip' -exec cp {} release/ \;
+          (cd artifacts/CS-80E-previews && zip -qr "$GITHUB_WORKSPACE/release/CS-80E-previews.zip" .)
+          cp artifacts/CS-80E-previews/screenshots/*.png release/
+          cp artifacts/CS-80E-previews/audio/*.wav release/
+          sha256sum release/*.zip > release/SHA256SUMS.txt
+          ls -lh release
+
+      - name: Publish rolling latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: CS-80E latest builds
+          make_latest: true
+          fail_on_unmatched_files: true
+          body: |
+            Automated builds from the latest commit on `main`.
+
+            | Platform | Download |
+            | --- | --- |
+            | Linux | [CS-80E-linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-linux.zip) |
+            | macOS | [CS-80E-macos.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-macos.zip) |
+            | Windows | [CS-80E-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-windows.zip) |
+            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) |
+
+            Built from `${{ github.sha }}`. Checksums are attached as
+            `SHA256SUMS.txt`.
+          files: |
+            release/*.zip
+            release/*.png
+            release/*.wav
+            release/SHA256SUMS.txt
+
   release:
-    name: Attach builds to release
+    name: Attach builds to tag release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, screenshots, pluginval]
     runs-on: ubuntu-latest
@@ -242,16 +315,25 @@ jobs:
         with:
           path: artifacts
 
-      - name: Collect downloads
+      - name: Collect downloads and checksums
         run: |
           mkdir -p release
-          find artifacts -name '*.zip' -exec cp {} release/ \;
+          find artifacts -maxdepth 2 -name '*.zip' -exec cp {} release/ \;
           (cd artifacts/CS-80E-previews && zip -qr "$GITHUB_WORKSPACE/release/CS-80E-previews.zip" .)
+          cp artifacts/CS-80E-previews/screenshots/*.png release/
+          cp artifacts/CS-80E-previews/audio/*.wav release/
+          sha256sum release/*.zip > release/SHA256SUMS.txt
           ls -lh release
 
-      - name: Publish release
+      - name: Publish tagged release
         uses: softprops/action-gh-release@v2
         with:
           name: CS-80E ${{ github.ref_name }}
           generate_release_notes: true
-          files: release/*.zip
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: |
+            release/*.zip
+            release/*.png
+            release/*.wav
+            release/SHA256SUMS.txt

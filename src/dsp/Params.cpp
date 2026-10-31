@@ -23,6 +23,7 @@ const FieldRef kFields[] = {
     { pid::ring,       &Params::ring },
     { pid::noise,      &Params::noise },
     { pid::vco1Level,  &Params::vco1Level },
+    { pid::vco1Sub,    &Params::vco1Sub },
     { pid::vco1Octave, &Params::vco1Octave },
     { pid::vco1Detune, &Params::vco1Detune },
     { pid::vco2Level,  &Params::vco2Level },
@@ -33,6 +34,8 @@ const FieldRef kFields[] = {
     { pid::hpfRes,     &Params::hpfRes },
     { pid::lpfCutoff,  &Params::lpfCutoff },
     { pid::lpfRes,     &Params::lpfRes },
+    { pid::filterTrack, &Params::filterTrack },
+    { pid::drive,      &Params::drive },
     { pid::fIl,        &Params::fIl },
     { pid::fAl,        &Params::fAl },
     { pid::fA,         &Params::fA },
@@ -54,6 +57,9 @@ const FieldRef kFields[] = {
     { pid::bendRange,  &Params::bendRange },
     { pid::spread,     &Params::spread },
     { pid::velocity,   &Params::velocity },
+    { pid::glide,      &Params::glide },
+    { pid::tune,       &Params::tune },
+    { pid::vintage,    &Params::vintage },
 };
 } // namespace
 
@@ -70,6 +76,7 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::noise, "Noise", "RING", 0.0f, 1.0f, 0.015f, 1.0f, 0, "" },
 
         { pid::vco1Level, "VCO 1", "VCO 1", 0.0f, 1.0f, 0.78f, 1.0f, 0, "" },
+        { pid::vco1Sub, "Sub", "VCO 1", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
         { pid::vco1Octave, "Octave", "VCO 1", -2.0f, 2.0f, 0.0f, 1.0f, 5, "oct" },
         { pid::vco1Detune, "Detune", "VCO 1", -25.0f, 25.0f, -6.0f, 1.0f, 0, "ct" },
 
@@ -82,6 +89,8 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::hpfRes, "Resonance", "HIGH PASS", 0.0f, 1.0f, 0.12f, 1.0f, 0, "" },
         { pid::lpfCutoff, "Cutoff", "LOW PASS", 40.0f, 16000.0f, 2400.0f, 0.3f, 0, "Hz" },
         { pid::lpfRes, "Resonance", "LOW PASS", 0.0f, 1.0f, 0.28f, 1.0f, 0, "" },
+        { pid::filterTrack, "Key Track", "FILTER", 0.0f, 1.0f, 0.35f, 1.0f, 0, "" },
+        { pid::drive, "Drive", "FILTER", 0.0f, 1.0f, 0.25f, 1.0f, 0, "" },
 
         { pid::fIl, "Initial", "FILTER EG", 0.0f, 1.0f, 0.12f, 1.0f, 0, "" },
         { pid::fAl, "Attack", "FILTER EG", 0.0f, 1.0f, 0.92f, 1.0f, 0, "" },
@@ -107,6 +116,9 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::bendRange, "Bend Range", "PERFORMANCE", 0.0f, 24.0f, 2.0f, 1.0f, 25, "st" },
         { pid::spread, "Spread", "PERFORMANCE", 0.0f, 1.0f, 0.45f, 1.0f, 0, "" },
         { pid::velocity, "Velocity", "PERFORMANCE", 0.0f, 1.0f, 0.45f, 1.0f, 0, "" },
+        { pid::glide, "Glide", "PERFORMANCE", 0.0f, 2.0f, 0.0f, 0.45f, 0, "s" },
+        { pid::tune, "Tune", "PERFORMANCE", -50.0f, 50.0f, 0.0f, 1.0f, 0, "ct" },
+        { pid::vintage, "Vintage", "PERFORMANCE", 0.0f, 1.0f, 0.35f, 1.0f, 0, "" },
     };
 
     return specs;
