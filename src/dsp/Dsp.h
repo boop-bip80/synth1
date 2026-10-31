@@ -1,0 +1,320 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
+namespace cs80
+{
+inline constexpr float kPi = 3.14159265358979323846f;
+
+inline float clampf (float v, float lo, float hi) noexcept
+{
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+inline float lerpf (float a, float b, float t) noexcept
+{
+    return a + (b - a) * t;
+}
+
+inline float flushDenormal (float v) noexcept
+{
+    return std::abs (v) < 1.0e-20f ? 0.0f : v;
+}
+
+/** Rational tanh approximation. Transparent in the audio band, and it keeps
+    the filter/limiter stage free of libm calls on the audio thread. */
+inline float fastTanh (float x) noexcept
+{
+    x = clampf (x, -3.0f, 3.0f);
+    const float x2 = x * x;
+    return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+}
+
+//==============================================================================
+/** PolyBLEP saw/pulse oscillator. The correction band-limits the discontinuities,
+    which matters a lot when eight voices of saw and pulse stack up. */
+struct Oscillator
+{
+    double phase = 0.0;
+    double inc = 0.0;
+
+    void reset (double startPhase = 0.0) noexcept { phase = startPhase; }
+
+    void setFrequency (double sampleRate, double hz) noexcept
+    {
+        const double nyquist = sampleRate * 0.5;
+        hz = std::clamp (hz, 0.5, nyquist * 0.95);
+        inc = hz / sampleRate;
+    }
+
+    static float polyBlep (float t, float dt) noexcept
+    {
+        if (dt <= 0.0f)
+            return 0.0f;
+
+        if (t < dt)
+        {
+            t /= dt;
+            return t + t - t * t - 1.0f;
+        }
+
+        if (t > 1.0f - dt)
+        {
+            t = (t - 1.0f) / dt;
+            return t * t + t + t + 1.0f;
+        }
+
+        return 0.0f;
+    }
+
+    float saw() noexcept
+    {
+        const auto t = (float) phase;
+        const auto dt = (float) inc;
+        float v = 2.0f * t - 1.0f;
+        v -= polyBlep (t, dt);
+
+        phase += inc;
+        if (phase >= 1.0)
+            phase -= 1.0;
+
+        return v;
+    }
+
+    float pulse (float width) noexcept
+    {
+        const auto t = (float) phase;
+        const auto dt = (float) inc;
+        float v = t < width ? 1.0f : -1.0f;
+        v += polyBlep (t, dt);
+
+        float t2 = t + 1.0f - width;
+        if (t2 >= 1.0f)
+            t2 -= 1.0f;
+
+        v -= polyBlep (t2, dt);
+
+        phase += inc;
+        if (phase >= 1.0)
+            phase -= 1.0;
+
+        return v;
+    }
+};
+
+//==============================================================================
+/** Topology-preserving state variable filter (12 dB/oct each output), with a
+    little feedback limiting so high resonance stays well behaved. */
+struct SVF
+{
+    float g = 0.0f, k = 1.0f;
+    float a1 = 0.0f, a2 = 0.0f, a3 = 0.0f;
+    float ic1 = 0.0f, ic2 = 0.0f;
+
+    void reset() noexcept
+    {
+        ic1 = ic2 = 0.0f;
+    }
+
+    void setCoefficients (double sampleRate, float hz, float q) noexcept
+    {
+        hz = clampf (hz, 20.0f, (float) sampleRate * 0.45f);
+        q = std::max (q, 0.35f);
+
+        g = std::tan (kPi * hz / (float) sampleRate);
+        k = 1.0f / q;
+        a1 = 1.0f / (1.0f + g * (g + k));
+        a2 = g * a1;
+        a3 = g * a2;
+    }
+
+    float lowpass (float in) noexcept
+    {
+        const float v3 = in - ic2;
+        const float v1 = a1 * ic1 + a2 * v3;
+        const float v2 = ic2 + a2 * ic1 + a3 * v3;
+
+        ic1 = flushDenormal (2.0f * v1 - ic1);
+        ic2 = flushDenormal (2.0f * v2 - ic2);
+
+        if (! std::isfinite (ic1) || ! std::isfinite (ic2))
+            reset();
+
+        return v2;
+    }
+
+    float highpass (float in) noexcept
+    {
+        const float v3 = in - ic2;
+        const float v1 = a1 * ic1 + a2 * v3;
+        const float v2 = ic2 + a2 * ic1 + a3 * v3;
+
+        ic1 = flushDenormal (2.0f * v1 - ic1);
+        ic2 = flushDenormal (2.0f * v2 - ic2);
+
+        if (! std::isfinite (ic1) || ! std::isfinite (ic2))
+            reset();
+
+        return in - k * v1 - v2;
+    }
+};
+
+//==============================================================================
+/** Segment based envelope with the CS-80 style pair of levels: it can start at
+    an arbitrary initial value (filter IL), climb to an attack level and settle
+    on a sustain level. The amp envelope simply uses initial=0, attack=1. */
+class Envelope
+{
+public:
+    void prepare (double sampleRateToUse) noexcept
+    {
+        sampleRate = sampleRateToUse > 0.0 ? sampleRateToUse : 48000.0;
+        reset();
+        updateCoefficients();
+    }
+
+    void setTimes (float attackSeconds, float decaySeconds, float releaseSeconds) noexcept
+    {
+        attackTime = std::max (attackSeconds, 0.0005f);
+        decayTime = std::max (decaySeconds, 0.0005f);
+        releaseTime = std::max (releaseSeconds, 0.0005f);
+        updateCoefficients();
+    }
+
+    void setLevels (float attackLevel, float sustainLevel) noexcept
+    {
+        attackTarget = clampf (attackLevel, 0.0f, 1.0f);
+        sustain = clampf (sustainLevel, 0.0f, 1.0f);
+
+        if (stage == Stage::Decay)
+            target = sustain;
+        else if (stage == Stage::Sustain)
+            value = sustain;
+    }
+
+    void trigger (float startValue) noexcept
+    {
+        value = clampf (startValue, 0.0f, 1.0f);
+        stage = Stage::Attack;
+        target = attackTarget;
+        coefficient = attackCoefficient;
+        stageLength = samplesFor (attackTime);
+        elapsed = 0;
+    }
+
+    void release() noexcept
+    {
+        if (stage == Stage::Idle || stage == Stage::Release)
+            return;
+
+        stage = Stage::Release;
+        target = 0.0f;
+        coefficient = releaseCoefficient;
+        stageLength = samplesFor (releaseTime);
+        elapsed = 0;
+    }
+
+    void reset() noexcept
+    {
+        stage = Stage::Idle;
+        value = 0.0f;
+        target = 0.0f;
+        elapsed = 0;
+        stageLength = 0;
+    }
+
+    float process() noexcept
+    {
+        switch (stage)
+        {
+            case Stage::Idle:
+                return 0.0f;
+
+            case Stage::Sustain:
+                value = sustain;
+                return value;
+
+            case Stage::Attack:
+            case Stage::Decay:
+            case Stage::Release:
+            {
+                value = target + (value - target) * coefficient;
+                ++elapsed;
+
+                if (elapsed >= stageLength)
+                {
+                    value = stage == Stage::Release ? 0.0f : target;
+
+                    if (stage == Stage::Attack)
+                    {
+                        stage = Stage::Decay;
+                        target = sustain;
+                        coefficient = decayCoefficient;
+                        stageLength = samplesFor (decayTime);
+                        elapsed = 0;
+                    }
+                    else if (stage == Stage::Decay)
+                    {
+                        stage = Stage::Sustain;
+                        value = sustain;
+                    }
+                    else
+                    {
+                        stage = Stage::Idle;
+                        value = 0.0f;
+                    }
+                }
+
+                return value;
+            }
+        }
+
+        return 0.0f;
+    }
+
+    bool isActive() const noexcept { return stage != Stage::Idle; }
+    bool isReleasing() const noexcept { return stage == Stage::Release; }
+    float getValue() const noexcept { return value; }
+
+private:
+    enum class Stage { Idle, Attack, Decay, Sustain, Release };
+
+    float coefficientFor (float seconds) const noexcept
+    {
+        return clampf (std::exp (-5.0f / (seconds * (float) sampleRate)), 0.0f, 0.99999f);
+    }
+
+    uint64_t samplesFor (float seconds) const noexcept
+    {
+        return (uint64_t) std::max (1.0f, seconds * (float) sampleRate);
+    }
+
+    void updateCoefficients() noexcept
+    {
+        attackCoefficient = coefficientFor (attackTime);
+        decayCoefficient = coefficientFor (decayTime);
+        releaseCoefficient = coefficientFor (releaseTime);
+    }
+
+    double sampleRate = 48000.0;
+    Stage stage = Stage::Idle;
+
+    float attackTime = 0.01f;
+    float decayTime = 1.0f;
+    float releaseTime = 0.4f;
+    float attackTarget = 1.0f;
+    float sustain = 0.8f;
+
+    float attackCoefficient = 0.0f;
+    float decayCoefficient = 0.0f;
+    float releaseCoefficient = 0.0f;
+    float coefficient = 0.0f;
+
+    float value = 0.0f;
+    float target = 0.0f;
+    uint64_t elapsed = 0;
+    uint64_t stageLength = 0;
+};
+} // namespace cs80
