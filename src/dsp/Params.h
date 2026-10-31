@@ -17,6 +17,7 @@ inline constexpr const char* space      = "space";
 
 inline constexpr const char* ring       = "ring";
 inline constexpr const char* noise      = "noise";
+inline constexpr const char* ringSpeed  = "ringSpeed";
 
 inline constexpr const char* vco1Level  = "vco1Level";
 inline constexpr const char* vco1Sub    = "vco1Sub";
@@ -27,6 +28,17 @@ inline constexpr const char* vco2Level  = "vco2Level";
 inline constexpr const char* vco2Pw     = "vco2Pw";
 inline constexpr const char* vco2Octave = "vco2Octave";
 inline constexpr const char* vco2Detune = "vco2Detune";
+
+inline constexpr const char* layerMode  = "layerMode";
+inline constexpr const char* splitPoint = "splitPoint";
+inline constexpr const char* layerLevel = "layerLevel";
+inline constexpr const char* layerDetune = "layerDetune";
+inline constexpr const char* layerOctave = "layerOctave";
+inline constexpr const char* layerPan   = "layerPan";
+inline constexpr const char* layerPw    = "layerPw";
+inline constexpr const char* layerCutoff = "layerCutoff";
+inline constexpr const char* layerRes   = "layerRes";
+inline constexpr const char* layerEnv   = "layerEnv";
 
 inline constexpr const char* hpfCutoff  = "hpfCutoff";
 inline constexpr const char* hpfRes     = "hpfRes";
@@ -96,6 +108,18 @@ struct Params
 
     float ring = 0.05f;
     float noise = 0.015f;
+    float ringSpeed = 320.0f;
+
+    float layerMode = 1.0f;      // 0 single, 1 dual, 2 split
+    float splitPoint = 60.0f;
+    float layerLevel = 0.34f;
+    float layerDetune = 6.0f;
+    float layerOctave = 0.0f;
+    float layerPan = 0.28f;
+    float layerPw = 0.46f;
+    float layerCutoff = 0.12f;
+    float layerRes = 0.25f;
+    float layerEnv = 1.0f;
 
     float vco1Level = 0.78f;
     float vco1Sub = 0.0f;

@@ -25,6 +25,7 @@ public:
         filterEnv,
         ampEnv,
         lfo,
+        layer,
         touch,
         output
     };

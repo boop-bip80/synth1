@@ -9,13 +9,45 @@ namespace cs80::ui
 {
 namespace
 {
+juce::String noteNameFromMidi (float value)
+{
+    static const char* const names[] = { "C", "C#", "D", "D#", "E", "F",
+                                         "F#", "G", "G#", "A", "A#", "B" };
+    const int note = (int) std::round (value);
+    const int pitchClass = ((note % 12) + 12) % 12;
+    const int octave = note / 12 - 1;
+    return juce::String (names[pitchClass]) + juce::String (octave);
+}
+
 juce::String formatParamValue (const juce::String& id, float value)
 {
-    if (id == pid::vco1Octave || id == pid::vco2Octave)
+    if (id == pid::vco1Octave || id == pid::vco2Octave || id == pid::layerOctave)
     {
         const int octave = (int) std::round (value);
         return (octave > 0 ? "+" : "") + juce::String (octave) + " OCT";
     }
+
+    if (id == pid::splitPoint)
+        return noteNameFromMidi (value);
+
+    if (id == pid::layerPan)
+    {
+        const int amount = (int) std::round (std::abs (value) * 100.0f);
+
+        if (amount == 0)
+            return "CENTER";
+
+        return (value < 0.0f ? "L " : "R ") + juce::String (amount);
+    }
+
+    if (id == pid::layerCutoff)
+        return (value >= 0.0f ? "+" : "") + juce::String (value, 2) + " OCT";
+
+    if (id == pid::layerEnv)
+        return juce::String (value, 2) + "X";
+
+    if (id == pid::ringSpeed)
+        return juce::String (value, 0) + " HZ";
 
     if (id == pid::bendRange)
         return juce::String ((int) std::round (value)) + " ST";
@@ -37,7 +69,7 @@ juce::String formatParamValue (const juce::String& id, float value)
     if (id == pid::tune)
         return (value > 0.0f ? "+" : "") + juce::String ((int) std::round (value)) + " CT";
 
-    if (id == pid::vco1Detune || id == pid::vco2Detune)
+    if (id == pid::vco1Detune || id == pid::vco2Detune || id == pid::layerDetune)
         return (value > 0.0f ? "+" : "") + juce::String ((int) std::round (value)) + " CT";
 
     if (id == pid::fIl || id == pid::fAl || id == pid::fS
@@ -47,7 +79,8 @@ juce::String formatParamValue (const juce::String& id, float value)
         || id == pid::ensemble || id == pid::space || id == pid::lfoPwm
         || id == pid::lfoFilter || id == pid::lfoAmp || id == pid::lfoPitch
         || id == pid::aftertouch || id == pid::spread || id == pid::velocity
-        || id == pid::vintage || id == pid::drive || id == pid::filterTrack)
+        || id == pid::vintage || id == pid::drive || id == pid::filterTrack
+        || id == pid::layerLevel || id == pid::layerRes || id == pid::layerPw)
         return juce::String (juce::roundToInt (value * 100.0f)) + "%";
 
     return juce::String (value, 2);
@@ -280,6 +313,16 @@ void SectionPanel::paintDecoration (juce::Graphics& g, juce::Rectangle<float> bo
             g.setColour (accent.withAlpha (alpha));
             g.strokePath (wave, juce::PathStrokeType (1.2f, juce::PathStrokeType::curved,
                                                       juce::PathStrokeType::rounded));
+            break;
+        }
+
+        case Decoration::layer:
+        {
+            const auto upper = area.withTrimmedBottom (area.getHeight() * 0.42f);
+            const auto lower = area.withTrimmedTop (area.getHeight() * 0.42f);
+            drawWaveformPath (g, upper, 3, false, accent, alpha * 0.95f);
+            drawWaveformPath (g, lower.translated (area.getWidth() * 0.08f, 0.0f),
+                              3, true, accent, alpha * 0.62f);
             break;
         }
 
@@ -658,13 +701,17 @@ void BrandPlate::paint (juce::Graphics& g)
     // A tiny power jewel on the plate.
     drawLed (g, { (float) getWidth() - 20.0f, 14.0f, 5.0f, 5.0f }, true, colour::amber, 0.55f);
 
-    drawTrackedText (g, "EIGHT VOICE POLYPHONIC SYNTHESIZER", { 2, 72, getWidth(), 14 },
-                     colour::cream.withAlpha (0.78f), juce::Justification::centredLeft,
-                     trackedFont (8.2f, 2.4f, false), 0.8f);
+    drawTrackedText (g, "DUAL CHANNEL POLYPHONIC SYNTHESIZER", { 2, 72, getWidth(), 14 },
+                     colour::cream.withAlpha (0.82f), juce::Justification::centredLeft,
+                     trackedFont (7.8f, 2.2f, false), 0.7f);
 
-    drawTrackedText (g, "CS-80 TRIBUTE   /   MODEL E   /   DUAL VCO", { 2, 87, getWidth(), 11 },
-                     colour::textFaint.brighter (0.26f), juce::Justification::centredLeft,
+    drawTrackedText (g, "CS-80 TRIBUTE   /   MODEL E   /   SERIES 3", { 2, 87, getWidth(), 11 },
+                     colour::textFaint.brighter (0.30f), juce::Justification::centredLeft,
                      monoFont (6.8f), 0.2f);
+
+    drawTrackedText (g, "CH I  ·  CH II", { getWidth() - 110, 70, 100, 10 },
+                     colour::amber.withAlpha (0.72f), juce::Justification::centredRight,
+                     trackedFont (6.2f, 1.2f, true), 0.3f);
 }
 
 //==============================================================================

@@ -138,6 +138,8 @@ float estimateFrequency (const std::vector<float>& samples, double sampleRate)
 Params plainPatch()
 {
     Params p = defaultParams();
+    p.layerMode = 0.0f;
+    p.layerLevel = 0.0f;
     p.ensemble = 0.0f;
     p.space = 0.0f;
     p.spread = 0.0f;
@@ -181,7 +183,7 @@ void testParameterTable()
     std::printf ("- parameter table and mappings\n");
 
     std::set<std::string> ids;
-    CHECK (paramSpecs().size() >= 30);
+    CHECK (paramSpecs().size() >= 50);
 
     for (const auto& spec : paramSpecs())
     {
@@ -216,7 +218,7 @@ void testPresets()
     std::printf ("- factory presets\n");
 
     const auto& presets = factoryPresets();
-    CHECK (presets.size() >= 16);
+    CHECK (presets.size() >= 24);
 
     std::set<std::string> names;
 
@@ -493,6 +495,118 @@ void testFilterBrightness()
     CHECK (rmsOf (darkness) > 0.0005f);
 }
 
+void testDualChannelLayer()
+{
+    std::printf ("- dual channel layer and layer pan\n");
+
+    auto renderWithMode = [] (float mode)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = plainPatch();
+        p.layerMode = mode;
+        p.layerLevel = 0.48f;
+        p.layerDetune = 9.0f;
+        p.layerPan = 0.7f;
+        p.spread = 0.0f;
+        engine.setParams (p);
+        engine.noteOn (60, 0.9f);
+        return render (engine, 12000);
+    };
+
+    const auto single = renderWithMode (0.0f);
+    const auto dual = renderWithMode (1.0f);
+
+    double difference = 0.0, energy = 0.0;
+    for (size_t i = 0; i < single.left.size(); ++i)
+    {
+        const double d = (double) dual.left[i] - single.left[i];
+        difference += d * d;
+        energy += (double) single.left[i] * single.left[i];
+    }
+
+    double stereoDifference = 0.0;
+    for (size_t i = 0; i < dual.left.size(); ++i)
+    {
+        const double d = (double) dual.left[i] - dual.right[i];
+        stereoDifference += d * d;
+    }
+
+    std::printf ("    dual layer difference %.2f%%, stereo %.2f%%\n",
+                 energy > 0.0 ? difference / energy * 100.0 : 0.0,
+                 energy > 0.0 ? stereoDifference / (energy + difference) * 100.0 : 0.0);
+    CHECK (difference > energy * 0.03);
+    CHECK (stereoDifference > (energy + difference) * 0.005);
+    CHECK (allFinite (dual));
+}
+
+void testKeyboardSplit()
+{
+    std::printf ("- keyboard split routes channel II above the split point\n");
+
+    auto renderNote = [] (int note)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = plainPatch();
+        p.layerMode = 2.0f;
+        p.splitPoint = 60.0f;
+        p.layerLevel = 0.8f;
+        p.layerPan = 0.92f;
+        p.spread = 0.0f;
+        engine.setParams (p);
+        engine.noteOn (note, 0.9f);
+        return render (engine, 12000);
+    };
+
+    const auto low = renderNote (48);
+    const auto high = renderNote (72);
+
+    double lowStereo = 0.0, highStereo = 0.0;
+    for (size_t i = 0; i < low.left.size(); ++i)
+    {
+        lowStereo += std::abs ((double) low.left[i] - low.right[i]);
+        highStereo += std::abs ((double) high.left[i] - high.right[i]);
+    }
+
+    std::printf ("    split stereo low=%.4f high=%.4f\n", lowStereo, highStereo);
+    CHECK (lowStereo < 1.0e-4);
+    CHECK (highStereo > 0.01);
+    CHECK (allFinite (low) && allFinite (high));
+}
+
+void testRingModulator()
+{
+    std::printf ("- ring modulator carrier tracks its speed\n");
+
+    auto renderRing = [] (float speed)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = plainPatch();
+        p.ring = 0.9f;
+        p.ringSpeed = speed;
+        p.lpfCutoff = 9000.0f;
+        engine.setParams (p);
+        engine.noteOn (57, 1.0f);
+        return render (engine, 24000);
+    };
+
+    const auto slow = renderRing (40.0f);
+    const auto fast = renderRing (920.0f);
+
+    double difference = 0.0, energy = 0.0;
+    for (size_t i = 0; i < slow.left.size(); ++i)
+    {
+        const double d = (double) slow.left[i] - fast.left[i];
+        difference += d * d;
+        energy += (double) slow.left[i] * slow.left[i];
+    }
+
+    CHECK (difference > energy * 0.05);
+    CHECK (allFinite (slow) && allFinite (fast));
+}
+
 void testStereoAndChorus()
 {
     std::printf ("- stereo spread and ensemble\n");
@@ -551,6 +665,11 @@ void testReverbTail()
 
     (void) render (engine, 4800);
     engine.allNotesOff (true);
+
+    // Let the plate's stereo pre-delay fill before measuring the decay. The
+    // first few milliseconds after a hard voice kill are the reverb onset,
+    // not the tail.
+    (void) render (engine, 4800);
 
     auto tailEarly = render (engine, 4800);
     auto tailLate = render (engine, 4800);
@@ -897,6 +1016,9 @@ int main()
     testMasterTune();
     testVintageSpread();
     testFilterBrightness();
+    testDualChannelLayer();
+    testKeyboardSplit();
+    testRingModulator();
     testStereoAndChorus();
     testReverbTail();
     testSustainPedal();

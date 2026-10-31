@@ -50,6 +50,7 @@ public:
     float voiceActivity (int index) const;
     float outputMeter (int channel) const;
     int readScope (float* destination, int maxSamples) const;
+    int readScopeStereo (float* destinationL, float* destinationR, int maxSamples) const;
 
 private:
     struct Impl;

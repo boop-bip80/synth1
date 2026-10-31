@@ -2,19 +2,21 @@
 
 #include "../PluginProcessor.h"
 
+#include <cmath>
+
 namespace cs80::ui
 {
 namespace
 {
-constexpr float panelWidth = 1040.0f;
-constexpr float panelHeight = 666.0f;
-constexpr int columns = 2;
-constexpr int rowsPerColumn = 9;
-constexpr float rowHeight = 49.0f;
-constexpr float rowGap = 3.0f;
+constexpr float panelWidth = 1180.0f;
+constexpr float panelHeight = 760.0f;
+constexpr int columns = 3;
+constexpr int rowsPerColumn = 8;
+constexpr float rowHeight = 56.0f;
+constexpr float rowGap = 6.0f;
 constexpr int rowCount = columns * rowsPerColumn;
-constexpr float rowsStart = 98.0f;
-constexpr float footerHeight = 48.0f;
+constexpr float rowsStart = 112.0f;
+constexpr float footerHeight = 58.0f;
 
 juce::Rectangle<float> browserPanelBounds (juce::Rectangle<float> full)
 {
@@ -173,10 +175,23 @@ void PresetDisplay::paint (juce::Graphics& g)
                      colour::amberDim.brighter (0.95f), juce::Justification::centredLeft,
                      monoFont (5.5f, true), 0.4f);
 
-    drawTrackedText (g, "OSC · RING · HPF · LPF · VCA",
-                     { (int) inner.getRight() - 175, (int) inner.getBottom() - 13, 165, 8 },
-                     colour::amberDim.withAlpha (0.72f), juce::Justification::centredRight,
+    const auto* modeParam = processor.apvts.getRawParameterValue (pid::layerMode);
+    const int mode = modeParam != nullptr ? (int) std::round (modeParam->load()) : 1;
+    const auto modeText = mode == 0 ? juce::String ("SINGLE")
+                        : mode == 1 ? juce::String ("DUAL")
+                                    : juce::String ("SPLIT");
+
+    drawTrackedText (g, "MODE " + modeText + "  ·  CH I" + (mode == 0 ? "" : " + II"),
+                     { (int) inner.getRight() - 220, (int) inner.getBottom() - 13, 210, 8 },
+                     colour::amberDim.withAlpha (0.82f), juce::Justification::centredRight,
                      monoFont (5.2f), 0.2f);
+
+    // Two tiny channel lamps make the dual architecture legible at a glance.
+    const auto lampY = inner.getBottom() - 15.0f;
+    drawLed (g, { inner.getRight() - 242.0f, lampY, 4.0f, 4.0f }, true, colour::amber, 0.55f);
+
+    if (mode != 0)
+        drawLed (g, { inner.getRight() - 234.0f, lampY, 4.0f, 4.0f }, true, colour::amber, 0.55f);
 
     juce::Path chevron;
     chevron.startNewSubPath (glass.getRight() - 19.0f, glass.getBottom() - 12.0f);
@@ -199,9 +214,9 @@ void PresetBrowser::resized() {}
 juce::Rectangle<float> PresetBrowser::rowBounds (int row) const
 {
     const auto panel = browserPanelBounds (getLocalBounds().toFloat());
-    const float gap = 18.0f;
-    const float margin = 28.0f;
-    const float columnWidth = (panel.getWidth() - margin * 2.0f - gap) * 0.5f;
+    const float gap = 20.0f;
+    const float margin = 30.0f;
+    const float columnWidth = (panel.getWidth() - margin * 2.0f - gap * 2.0f) / 3.0f;
     const int column = row / rowsPerColumn;
     const int line = row % rowsPerColumn;
 
@@ -253,10 +268,10 @@ void PresetBrowser::paint (juce::Graphics& g)
                      trackedFont (21.0f, 3.2f, true), 0.8f);
 
     drawTrackedText (g, "FACTORY BANK A  /  " + juce::String (presetCount())
-                            + " PATCHES  /  CLICK TO AUDITION",
-                     { (int) panel.getX() + 31, (int) panel.getY() + 48, 620, 12 },
+                            + " PATCHES  /  DUAL CHANNEL  /  CLICK TO AUDITION",
+                     { (int) panel.getX() + 31, (int) panel.getY() + 48, 720, 12 },
                      colour::textDim.brighter (0.05f), juce::Justification::centredLeft,
-                     monoFont (7.8f), 0.4f);
+                     monoFont (7.4f), 0.4f);
 
     // A little "A" plaque on the right of the header.
     const juce::Rectangle<float> plaque (panel.getRight() - 126.0f, panel.getY() + 22.0f, 46.0f, 34.0f);
@@ -292,10 +307,17 @@ void PresetBrowser::paint (juce::Graphics& g)
     g.strokePath (cross, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
-    // Column divider.
-    g.setColour (juce::Colours::black.withAlpha (0.45f));
-    g.drawLine (panel.getCentreX(), panel.getY() + 98.0f,
-                panel.getCentreX(), panel.getBottom() - footerHeight - 10.0f, 1.0f);
+    // Column dividers.
+    for (int column = 1; column < columns; ++column)
+    {
+        const float columnWidth = (panel.getWidth() - 60.0f - 40.0f) / (float) columns;
+        const float x = panel.getX() + 30.0f
+                      + (float) column * columnWidth
+                      + (float) (2 * column - 1) * 10.0f;
+
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.drawLine (x, panel.getY() + 108.0f, x, panel.getBottom() - footerHeight - 10.0f, 1.0f);
+    }
 
     const int current = processor.currentPresetIndex();
 
@@ -359,7 +381,7 @@ void PresetBrowser::paint (juce::Graphics& g)
                 panel.getRight() - 24.0f, panel.getBottom() - footerHeight, 1.0f);
 
     drawTrackedText (g, "CLICK A PATCH TO AUDITION  /  ESC TO CLOSE  /  UP / DOWN STEP THROUGH",
-                     { (int) panel.getX() + 30, (int) panel.getBottom() - 32, 680, 14 },
+                     { (int) panel.getX() + 30, (int) panel.getBottom() - 32, 760, 14 },
                      colour::textDim.brighter (0.05f), juce::Justification::centredLeft,
                      monoFont (7.4f), 0.3f);
 

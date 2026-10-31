@@ -42,52 +42,61 @@ void ScopeDisplay::paint (juce::Graphics& g)
         g.drawLine (inner.getX() + inner.getWidth() * (float) i / 6.0f, inner.getY(),
                     inner.getX() + inner.getWidth() * (float) i / 6.0f, inner.getBottom(), 0.6f);
 
-    std::array<float, 512> samples {};
-    engine.readScope (samples.data(), (int) samples.size());
+    std::array<float, 512> samplesL {}, samplesR {};
+    engine.readScopeStereo (samplesL.data(), samplesR.data(), (int) samplesL.size());
 
     int start = 0;
     for (int i = 1; i < 180; ++i)
     {
-        if (samples[(size_t) i - 1] <= 0.0f && samples[(size_t) i] > 0.0f)
+        if (samplesL[(size_t) i - 1] <= 0.0f && samplesL[(size_t) i] > 0.0f)
         {
             start = i;
             break;
         }
     }
 
-    const int count = (int) samples.size() - start;
+    const int count = (int) samplesL.size() - start;
 
     if (count > 4)
     {
         g.setColour (colour::amber.withAlpha (0.15f));
         g.drawLine (inner.getX(), inner.getCentreY(), inner.getRight(), inner.getCentreY(), 0.6f);
 
-        juce::Path trace;
         const float midY = inner.getCentreY();
         const float amplitude = inner.getHeight() * 0.37f;
 
-        for (int i = 0; i < count; ++i)
+        auto drawTrace = [&] (const std::array<float, 512>& samples, juce::Colour traceColour,
+                              float thickness, float alpha)
         {
-            const float x = inner.getX() + (float) i / (float) (count - 1) * inner.getWidth();
-            const float y = midY - juce::jlimit (-1.0f, 1.0f, samples[(size_t) (start + i)] * 1.9f) * amplitude;
+            juce::Path trace;
 
-            if (i == 0)
-                trace.startNewSubPath (x, y);
-            else
-                trace.lineTo (x, y);
-        }
+            for (int i = 0; i < count; ++i)
+            {
+                const float x = inner.getX() + (float) i / (float) (count - 1) * inner.getWidth();
+                const float y = midY - juce::jlimit (-1.0f, 1.0f, samples[(size_t) (start + i)] * 1.9f) * amplitude;
 
-        g.setColour (colour::amber.withAlpha (0.09f));
-        g.strokePath (trace, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved,
-                                                   juce::PathStrokeType::rounded));
+                if (i == 0)
+                    trace.startNewSubPath (x, y);
+                else
+                    trace.lineTo (x, y);
+            }
 
-        g.setColour (colour::amber.withAlpha (0.30f));
-        g.strokePath (trace, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved,
-                                                   juce::PathStrokeType::rounded));
+            g.setColour (traceColour.withAlpha (alpha * 0.10f));
+            g.strokePath (trace, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved,
+                                                       juce::PathStrokeType::rounded));
 
-        g.setColour (colour::amberHot.withAlpha (0.98f));
-        g.strokePath (trace, juce::PathStrokeType (1.15f, juce::PathStrokeType::curved,
-                                                   juce::PathStrokeType::rounded));
+            g.setColour (traceColour.withAlpha (alpha * 0.34f));
+            g.strokePath (trace, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved,
+                                                       juce::PathStrokeType::rounded));
+
+            g.setColour (traceColour.withAlpha (alpha));
+            g.strokePath (trace, juce::PathStrokeType (thickness, juce::PathStrokeType::curved,
+                                                       juce::PathStrokeType::rounded));
+        };
+
+        // Right first, a little quieter: a true stereo pair, not a faked shadow.
+        drawTrace (samplesR, colour::copper, 0.9f, 0.58f);
+        drawTrace (samplesL, colour::amberHot, 1.15f, 0.98f);
 
         const float endX = inner.getRight() - 2.0f;
         drawGlow (g, { endX, midY }, 10.0f, colour::amberHot, 0.55f);
@@ -110,7 +119,7 @@ void ScopeDisplay::paint (juce::Graphics& g)
                      colour::amberDim.brighter (0.55f), juce::Justification::centredLeft,
                      monoFont (5.8f, true), 0.5f);
 
-    drawTrackedText (g, "POST FX", { (int) inner.getRight() - 48, (int) inner.getBottom() - 8, 48, 7 },
+    drawTrackedText (g, "POST FX  ·  L / R", { (int) inner.getRight() - 78, (int) inner.getBottom() - 8, 78, 7 },
                      colour::amberDim.brighter (0.50f), juce::Justification::centredRight,
                      monoFont (5.4f), 0.4f);
 }
@@ -336,7 +345,8 @@ void RibbonStrip::timerCallback()
 }
 
 //==============================================================================
-Cs80Keyboard::Cs80Keyboard (juce::MidiKeyboardState& stateToUse) : state (stateToUse)
+Cs80Keyboard::Cs80Keyboard (Cs80AudioProcessor& processorToUse)
+    : processor (processorToUse), state (processorToUse.keyboardState)
 {
     state.addListener (this);
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
@@ -353,8 +363,8 @@ void Cs80Keyboard::resized()
     blackKeys.clear();
 
     constexpr int lowNote = 36;
-    constexpr int highNote = 72;
-    constexpr int whiteCount = 22;
+    constexpr int highNote = 96;
+    constexpr int whiteCount = 36;
 
     const float railHeight = 10.0f;
     const float keyTop = railHeight + 2.0f;
@@ -408,6 +418,23 @@ float Cs80Keyboard::velocityAt (float y) const
     return 0.35f + 0.65f * normalised;
 }
 
+void Cs80Keyboard::updatePressure (float y)
+{
+    if (currentNote < 0)
+        return;
+
+    const float railHeight = 12.0f;
+    const float keyHeight = juce::jmax (1.0f, (float) getHeight() - railHeight - 2.0f);
+    const float pressure = juce::jlimit (0.0f, 1.0f, (y - railHeight) / keyHeight);
+
+    if (std::abs (pressure - currentPressure) > 0.005f)
+    {
+        currentPressure = pressure;
+        processor.getEngine().setPolyPressure (currentNote, pressure);
+        repaint();
+    }
+}
+
 void Cs80Keyboard::mouseDown (const juce::MouseEvent& event)
 {
     const int note = noteAt (event.position);
@@ -416,6 +443,7 @@ void Cs80Keyboard::mouseDown (const juce::MouseEvent& event)
     {
         stopCurrentNote();
         currentNote = note;
+        currentPressure = 0.0f;
         state.noteOn (1, note, velocityAt (event.position.y));
         repaint();
     }
@@ -432,10 +460,17 @@ void Cs80Keyboard::mouseDrag (const juce::MouseEvent& event)
         if (note >= 0)
         {
             currentNote = note;
+            currentPressure = 0.0f;
             state.noteOn (1, note, velocityAt (event.position.y));
         }
 
         repaint();
+    }
+    else
+    {
+        // The CS-80 keybed is pressure sensitive. Sliding down a held key
+        // sends per-note aftertouch, which is where the instrument sings.
+        updatePressure (event.position.y);
     }
 }
 
@@ -458,8 +493,10 @@ void Cs80Keyboard::stopCurrentNote()
 {
     if (currentNote >= 0)
     {
+        processor.getEngine().setPolyPressure (currentNote, 0.0f);
         state.noteOff (1, currentNote, 0.0f);
         currentNote = -1;
+        currentPressure = 0.0f;
     }
 }
 
@@ -490,7 +527,7 @@ void Cs80Keyboard::paint (juce::Graphics& g)
                      colour::amberDim.brighter (0.55f), juce::Justification::centredLeft,
                      monoFont (5.4f), 0.3f);
 
-    drawTrackedText (g, "VELOCITY SENSITIVE  /  36 - 72", { getWidth() - 190, 1, 182, 8 },
+    drawTrackedText (g, "61 KEY  /  VELOCITY + POLY TOUCH  /  C2 - C7", { getWidth() - 290, 1, 282, 8 },
                      colour::textFaint, juce::Justification::centredRight,
                      monoFont (5.2f), 0.2f);
 
@@ -523,8 +560,12 @@ void Cs80Keyboard::paint (juce::Graphics& g)
         g.fillRoundedRectangle (key.bounds, 2.0f);
 
         if (down)
+        {
+            const float pressure = key.note == currentNote ? currentPressure : 0.0f;
             drawGlow (g, { key.bounds.getCentreX(), key.bounds.getCentreY() },
-                      key.bounds.getWidth() * 0.8f, colour::amber, 0.30f);
+                      key.bounds.getWidth() * (0.8f + pressure * 0.4f), colour::amber,
+                      0.30f + pressure * 0.35f);
+        }
 
         if (key.note % 12 == 0)
         {

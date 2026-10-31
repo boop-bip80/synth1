@@ -157,7 +157,7 @@ jobs:
           expected = [
               "01-blade-brass.png", "02-vangelis-lead.png", "03-neon-pads.png",
               "04-preset-library.png", "05-brass-stab.png", "06-filter-closeup.png",
-              "07-ribbon-keybed.png", "08-blade-runner.png",
+              "07-ribbon-keybed.png", "08-blade-runner.png", "09-channel-two.png",
           ]
 
           shots = sorted(pathlib.Path("docs/screenshots").glob("*.png"))
@@ -196,6 +196,7 @@ jobs:
             echo "Renders are unchanged."
           else
             git commit -m "Refresh panel renders and demo [skip ci]"
+            git pull --rebase origin ${GITHUB_REF_NAME}
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
@@ -255,7 +256,7 @@ jobs:
   publish-latest:
     name: Refresh latest downloads
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    needs: [build, screenshots]
+    needs: [build, screenshots, pluginval]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -270,10 +271,35 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -maxdepth 2 -name '*.zip' -exec cp {} release/ \;
+          test -f release/CS-80E-linux.zip
+          test -f release/CS-80E-macos.zip
+          test -f release/CS-80E-windows.zip
           (cd artifacts/CS-80E-previews && zip -qr "$GITHUB_WORKSPACE/release/CS-80E-previews.zip" .)
           cp artifacts/CS-80E-previews/screenshots/*.png release/
           cp artifacts/CS-80E-previews/audio/*.wav release/
           sha256sum release/*.zip > release/SHA256SUMS.txt
+          python3 - <<'PY'
+          import json, os, pathlib
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/latest"
+          manifest = {
+              "project": "CS-80E",
+              "version": "3.0.0",
+              "commit": os.environ["GITHUB_SHA"],
+              "builds": {
+                  "linux": f"{base}/CS-80E-linux.zip",
+                  "macos": f"{base}/CS-80E-macos.zip",
+                  "windows": f"{base}/CS-80E-windows.zip",
+                  "previews": f"{base}/CS-80E-previews.zip",
+                  "checksums": f"{base}/SHA256SUMS.txt",
+              },
+              "formats": {
+                  "linux": ["VST3", "Standalone"],
+                  "macos": ["VST3", "AU", "Standalone"],
+                  "windows": ["VST3", "Standalone"],
+              },
+          }
+          pathlib.Path("release/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
           ls -lh release
 
       - name: Publish rolling latest release
@@ -284,14 +310,17 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
           body: |
+            [![CS-80E dual-channel panel](https://github.com/${{ github.repository }}/releases/download/latest/01-blade-brass.png)](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip)
+
             Automated builds from the latest commit on `main`.
 
-            | Platform | Download |
-            | --- | --- |
-            | Linux | [CS-80E-linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-linux.zip) |
-            | macOS | [CS-80E-macos.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-macos.zip) |
-            | Windows | [CS-80E-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-windows.zip) |
-            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) |
+            | Platform | Download | Formats |
+            | --- | --- | --- |
+            | Linux | [CS-80E-linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-linux.zip) | VST3 + Standalone |
+            | macOS | [CS-80E-macos.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-macos.zip) | VST3 + AU + Standalone |
+            | Windows | [CS-80E-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-windows.zip) | VST3 + Standalone |
+            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) | 9 PNGs + demo WAV |
+            | Machine-readable links | [latest.json](https://github.com/${{ github.repository }}/releases/download/latest/latest.json) | JSON |
 
             Built from `${{ github.sha }}`. Checksums are attached as
             `SHA256SUMS.txt`.
@@ -299,6 +328,7 @@ jobs:
             release/*.zip
             release/*.png
             release/*.wav
+            release/latest.json
             release/SHA256SUMS.txt
 
   release:

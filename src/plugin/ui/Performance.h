@@ -73,7 +73,7 @@ class Cs80Keyboard : public juce::Component, private juce::MidiKeyboardState::Li
                      private juce::AsyncUpdater
 {
 public:
-    explicit Cs80Keyboard (juce::MidiKeyboardState& stateToUse);
+    explicit Cs80Keyboard (Cs80AudioProcessor& processorToUse);
     ~Cs80Keyboard() override;
 
     void paint (juce::Graphics&) override;
@@ -98,11 +98,14 @@ private:
 
     int noteAt (juce::Point<float> position) const;
     float velocityAt (float y) const;
+    void updatePressure (float y);
     void stopCurrentNote();
 
+    Cs80AudioProcessor& processor;
     juce::MidiKeyboardState& state;
     std::vector<Key> whiteKeys, blackKeys;
     int currentNote = -1;
+    float currentPressure = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Cs80Keyboard)
 };

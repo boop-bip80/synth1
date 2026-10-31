@@ -22,6 +22,17 @@ const FieldRef kFields[] = {
     { pid::space,      &Params::space },
     { pid::ring,       &Params::ring },
     { pid::noise,      &Params::noise },
+    { pid::ringSpeed,  &Params::ringSpeed },
+    { pid::layerMode,  &Params::layerMode },
+    { pid::splitPoint, &Params::splitPoint },
+    { pid::layerLevel, &Params::layerLevel },
+    { pid::layerDetune, &Params::layerDetune },
+    { pid::layerOctave, &Params::layerOctave },
+    { pid::layerPan,   &Params::layerPan },
+    { pid::layerPw,    &Params::layerPw },
+    { pid::layerCutoff, &Params::layerCutoff },
+    { pid::layerRes,   &Params::layerRes },
+    { pid::layerEnv,   &Params::layerEnv },
     { pid::vco1Level,  &Params::vco1Level },
     { pid::vco1Sub,    &Params::vco1Sub },
     { pid::vco1Octave, &Params::vco1Octave },
@@ -73,7 +84,19 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::space, "Space", "OUTPUT", 0.0f, 1.0f, 0.16f, 1.0f, 0, "" },
 
         { pid::ring, "Ring Mod", "RING", 0.0f, 1.0f, 0.05f, 1.0f, 0, "" },
+        { pid::ringSpeed, "Ring Speed", "RING", 20.0f, 2000.0f, 320.0f, 0.55f, 0, "Hz" },
         { pid::noise, "Noise", "RING", 0.0f, 1.0f, 0.015f, 1.0f, 0, "" },
+
+        { pid::layerMode, "Layer Mode", "CHANNEL II", 0.0f, 2.0f, 1.0f, 1.0f, 3, "", "Single|Dual|Split" },
+        { pid::splitPoint, "Split Point", "CHANNEL II", 36.0f, 96.0f, 60.0f, 1.0f, 61, "note" },
+        { pid::layerLevel, "Level", "CHANNEL II", 0.0f, 1.0f, 0.34f, 1.0f, 0, "" },
+        { pid::layerDetune, "Detune", "CHANNEL II", -25.0f, 25.0f, 6.0f, 1.0f, 0, "ct" },
+        { pid::layerOctave, "Octave", "CHANNEL II", -2.0f, 2.0f, 0.0f, 1.0f, 5, "oct" },
+        { pid::layerPan, "Pan", "CHANNEL II", -1.0f, 1.0f, 0.28f, 1.0f, 0, "" },
+        { pid::layerPw, "Pulse Width", "CHANNEL II", 0.05f, 0.95f, 0.46f, 1.0f, 0, "" },
+        { pid::layerCutoff, "Cutoff Offset", "CHANNEL II", -2.0f, 2.0f, 0.12f, 1.0f, 0, "oct" },
+        { pid::layerRes, "Resonance", "CHANNEL II", 0.0f, 1.0f, 0.25f, 1.0f, 0, "" },
+        { pid::layerEnv, "Envelope", "CHANNEL II", 0.5f, 2.0f, 1.0f, 1.0f, 0, "x" },
 
         { pid::vco1Level, "VCO 1", "VCO 1", 0.0f, 1.0f, 0.78f, 1.0f, 0, "" },
         { pid::vco1Sub, "Sub", "VCO 1", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
@@ -185,9 +208,11 @@ float clampToSpec (const std::string& id, float value)
 {
     if (const auto* spec = findSpec (id))
     {
-        if (spec->steps > 0 && spec->id == pid::vco1Octave)
+        if (spec->steps > 0 && (spec->id == pid::vco1Octave
+                                || spec->id == pid::vco2Octave
+                                || spec->id == pid::layerOctave))
             value = std::round (value);
-        else if (spec->steps > 0 && spec->id == pid::vco2Octave)
+        else if (spec->steps > 0 && (spec->id == pid::layerMode || spec->id == pid::splitPoint))
             value = std::round (value);
 
         return std::clamp (value, spec->minValue, spec->maxValue);

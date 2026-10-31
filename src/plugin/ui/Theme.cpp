@@ -344,6 +344,7 @@ juce::Colour categoryColour (const juce::String& category)
     if (category == "FX")      return juce::Colour (0xffa8ce7a);
     if (category == "ORGAN")   return juce::Colour (0xff9fc7df);
     if (category == "STRINGS") return juce::Colour (0xffd7b98c);
+    if (category == "SPLIT")   return juce::Colour (0xffe0a0c8);
 
     return colour::amber;
 }

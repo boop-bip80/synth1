@@ -221,16 +221,18 @@ int main (int argc, char** argv)
     std::printf ("CS-80E offline renderer\n");
 
     const std::vector<Shot> shots = {
-        { "01-blade-brass.png", 0, { 36, 48, 51, 55, 62 }, false, 0, 1.35f, {} },
-        { "02-vangelis-lead.png", 1, { 60, 63, 67, 70 }, false, 0, 1.20f, {} },
-        { "03-neon-pads.png", 2, { 41, 48, 55, 60, 63, 68 }, false, 0, 1.20f, {} },
+        { "01-blade-brass.png", 0, { 36, 48, 51, 55, 62 }, false, 0, 1.20f, {} },
+        { "02-vangelis-lead.png", 1, { 60, 63, 67, 70 }, false, 0, 1.10f, {} },
+        { "03-neon-pads.png", 2, { 41, 48, 55, 60, 63, 68 }, false, 0, 1.10f, {} },
         { "04-preset-library.png", 9, { 36, 48, 51, 55, 60, 63, 67 }, true, 13, 1.00f, {} },
-        { "05-brass-stab.png", 7, { 48, 55, 58, 63 }, false, 0, 1.20f, {} },
-        { "06-filter-closeup.png", 4, { 60, 64, 67 }, false, 0, 2.00f,
-          juce::Rectangle<int> (552, 164, 558, 392) },
-        { "07-ribbon-keybed.png", 0, { 48, 55, 60, 64 }, false, 0, 1.50f,
-          juce::Rectangle<int> (40, 700, 1280, 170) },
-        { "08-blade-runner.png", 9, { 36, 48, 51, 55, 60, 63 }, false, 0, 1.20f, {} },
+        { "05-brass-stab.png", 7, { 48, 55, 58, 63 }, false, 0, 1.10f, {} },
+        { "06-filter-closeup.png", 4, { 60, 64, 67 }, false, 0, 1.80f,
+          juce::Rectangle<int> (456, 168, 736, 404) },
+        { "07-ribbon-keybed.png", 0, { 48, 55, 60, 64 }, false, 0, 1.40f,
+          juce::Rectangle<int> (40, 574, 1360, 382) },
+        { "08-blade-runner.png", 9, { 36, 48, 51, 55, 60, 63 }, false, 0, 1.10f, {} },
+        { "09-channel-two.png", 18, { 52, 59, 64, 68 }, false, 0, 2.00f,
+          juce::Rectangle<int> (50, 570, 430, 215) },
     };
 
     for (const auto& shot : shots)

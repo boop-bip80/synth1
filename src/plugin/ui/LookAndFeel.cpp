@@ -1,5 +1,6 @@
 #include "LookAndFeel.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace cs80::ui
@@ -93,7 +94,7 @@ void Cs80LookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int wid
         drawGlow (g, { centreX, clampedPos }, 19.0f, colour::amber, active ? 0.60f : 0.26f);
 
     // Ivory fader cap, like the CS-80's white sliders.
-    const float capW = 34.0f;
+    const float capW = std::min (34.0f, bounds.getWidth() - 2.0f);
     const float capH = 16.0f;
     const auto cap = juce::Rectangle<float> (capW, capH)
                          .withCentre ({ centreX, clampedPos });
