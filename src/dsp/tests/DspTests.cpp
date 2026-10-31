@@ -598,6 +598,130 @@ void testAftertouch()
     CHECK (variance > 0.0f);
 }
 
+void testBlockSizeConsistency()
+{
+    std::printf ("- rendering independent of the host block size\n");
+
+    auto run = [] (int blockSize)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = defaultParams();
+        p.lfoDelay = 0.0f;
+        engine.setParams (p);
+        engine.setModWheel (0.7f);
+        engine.noteOn (48, 0.8f);
+        engine.noteOn (55, 0.8f);
+        engine.pitchBend (1.0f);
+        return render (engine, 48000, blockSize);
+    };
+
+    const auto small = run (32);
+    const auto large = run (512);
+
+    // Short-window RMS envelopes: two renders that differ only by a phase
+    // shift are equivalent, but a level or timbre difference is not.
+    constexpr int window = 256;
+    double difference = 0.0, energy = 0.0;
+
+    for (int i = 0; i + window <= (int) small.left.size(); i += window)
+    {
+        double a = 0.0, b = 0.0;
+
+        for (int j = 0; j < window; ++j)
+        {
+            const double x = small.left[(size_t) (i + j)];
+            const double y = large.left[(size_t) (i + j)];
+            a += x * x;
+            b += y * y;
+        }
+
+        a = std::sqrt (a / window);
+        b = std::sqrt (b / window);
+        difference += (a - b) * (a - b);
+        energy += a * a;
+    }
+
+    const double relative = std::sqrt (difference / std::max (energy, 1.0e-12));
+    // A percent or so of residual is the coarse zero-order hold of a 512
+    // sample host block; anything time-based rather than sample based (the
+    // old behaviour) lands an order of magnitude above this.
+    std::printf ("    block 32 vs 512: %.3f%% envelope difference\n", relative * 100.0);
+    CHECK (relative < 0.02);
+}
+
+void testVoiceStealingIsSmooth()
+{
+    std::printf ("- voice stealing stays click free\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    Params p = plainPatch();
+    p.lpfCutoff = 450.0f;
+    p.aA = 0.02f;
+    p.aD = 1.0f;
+    p.aS = 1.0f;
+    p.aR = 2.0f;
+    engine.setParams (p);
+
+    for (int note = 48; note < 56; ++note)
+        engine.noteOn (note, 0.9f);
+
+    const auto settled = render (engine, 24000, 64);
+
+    std::vector<float> deltas;
+
+    for (int i = (int) settled.left.size() - 1024; i < (int) settled.left.size(); ++i)
+        deltas.push_back (std::abs (settled.left[(size_t) i] - settled.left[(size_t) (i - 1)]));
+
+    std::sort (deltas.begin(), deltas.end());
+    const float typical = deltas[deltas.size() / 2];
+
+    engine.noteOn (79, 0.9f);
+    const auto after = render (engine, 64, 64);
+    const float step = std::abs (after.left[0] - settled.left.back());
+
+    std::printf ("    steady sample step %.5f, steal step %.5f\n", typical, step);
+    CHECK (allFinite (after));
+    CHECK (step < typical * 2.0f);
+}
+
+void testVelocityOpensFilter()
+{
+    std::printf ("- velocity opens the filter\n");
+
+    auto brightness = [] (float velocity)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+        Params p = plainPatch();
+        p.velocity = 1.0f;
+        p.lpfCutoff = 1200.0f;
+        p.fIl = p.fAl = p.fS = 0.5f;
+        engine.setParams (p);
+        engine.noteOn (60, velocity);
+        const auto buffer = render (engine, 24000);
+
+        double high = 0.0, total = 0.0;
+        float lowpass = 0.0f;
+
+        for (float value : buffer.left)
+        {
+            lowpass += (value - lowpass) * 0.12f;
+            const double highPart = (double) value - lowpass;
+            high += highPart * highPart;
+            total += (double) value * value;
+        }
+
+        return (float) std::sqrt (high / std::max (total, 1.0e-12));
+    };
+
+    const float soft = brightness (0.2f);
+    const float hard = brightness (1.0f);
+    std::printf ("    brightness soft=%.3f hard=%.3f\n", soft, hard);
+    CHECK (hard > soft * 1.05f);
+}
+
 void testPresetsRender()
 {
     std::printf ("- every preset renders\n");
@@ -647,6 +771,9 @@ int main()
     testExtremeSettings();
     testScopeAndRetrigger();
     testAftertouch();
+    testBlockSizeConsistency();
+    testVoiceStealingIsSmooth();
+    testVelocityOpensFilter();
     testPresetsRender();
 
     std::printf ("===================\n");

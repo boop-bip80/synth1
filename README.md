@@ -5,7 +5,7 @@
 [![CI](https://github.com/boop-bip80/synth1/actions/workflows/ci.yml/badge.svg)](https://github.com/boop-bip80/synth1/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-927-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-931-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E Blade Brass panel">
@@ -68,13 +68,23 @@ rendered offline through the real processor by the screenshot tool.
 
 ## What is inside
 
-- **8-voice polyphony** with oldest-voice stealing and sustain-pedal handling.
+- **8-voice polyphony** with click-free oldest-voice stealing and sustain-pedal
+  handling: a robbed voice keeps its oscillator phase and filter state and
+  re-arms its envelopes from wherever they are.
+- **Living voices:** every voice starts at a scattered phase and drifts a few
+  cents at its own slow rate, so stacked chords breathe instead of phase-locking
+  into one giant comb filter.
 - **VCO 1:** band-limited polyBLEP saw, ±2 octave switch, detune.
 - **VCO 2:** polyBLEP pulse with PWM, ±2 octave switch, detune.
 - **Ring modulator** (VCO1 × VCO2) plus a noise source.
-- **12 dB/oct high-pass and low-pass** filters in series, each resonant.
+- **12 dB/oct high-pass and low-pass** filters in series, each resonant, with
+  the low-pass core gently overdriven the way a CS-80's is.
 - **CS-80-style filter envelope** with Initial Level, Attack Level and A/D/S/R.
-- **Amplitude ADSR**, velocity sensitivity and a soft output limiter.
+- **Amplitude ADSR**, velocity that opens the filter as well as the VCA, and a
+  soft output limiter.
+- **Buffer-size independence:** every glide is time-based and the filters and LFO
+  update every eight samples, so the instrument sounds the same at any host
+  block size.
 - **LFO** (triangle / sine / square / saw) with delay and routings to pitch, PWM,
   filter and tremolo.
 - **Expression:** channel and polyphonic aftertouch, mod wheel, pitch bend and a
@@ -180,7 +190,8 @@ The headless suite covers:
 - parameter table integrity, ranges, defaults and every spec↔struct mapping;
 - preset application, uniqueness and clamping;
 - silence when idle; finite output at every parameter extreme;
-- 8-voice polyphony and voice stealing;
+- 8-voice polyphony, click-free voice stealing and velocity-opened filters;
+- identical rendering at 32- and 512-sample host block sizes;
 - A4 tuning at 44.1, 48 and 96 kHz, octave switches and 24-semitone bend;
 - filter brightness response, ring/chorus stereo behaviour and reverb decay;
 - sustain pedal, retriggering, aftertouch/mod wheel and deterministic renders;

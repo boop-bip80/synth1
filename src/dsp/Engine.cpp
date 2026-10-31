@@ -13,12 +13,29 @@ namespace cs80
 {
 namespace
 {
-constexpr int kControlBlock = 16;
+/** Samples between filter coefficient updates. Small enough that a swept
+    filter stays smooth, cheap enough to run eight voices without breaking a
+    sweat. */
+constexpr int kControlBlock = 8;
 constexpr int kMixBlock = 512;
+
+/** Fixed trim in front of the master fader. It leaves enough room for an
+    eight-note chord to breathe before the output stage has to limit. */
+constexpr float kOutputTrim = 0.70f;
 
 inline float dbToGain (float db) noexcept
 {
     return std::pow (10.0f, db / 20.0f);
+}
+
+/** One-pole coefficient for a given time constant. Deriving it from the block
+    length keeps every glide identical whether the host hands us 16 samples or
+    512. */
+inline float smoothingCoefficient (float timeSeconds, double sampleRate, int numSamples) noexcept
+{
+    const float blocks = (float) std::max (numSamples, 1);
+    const float tau = std::max (timeSeconds, 1.0e-4f);
+    return 1.0f - std::exp (-blocks / (tau * (float) sampleRate));
 }
 
 inline float lfoWaveform (float wave, float phase) noexcept
@@ -37,10 +54,11 @@ inline float lfoWaveform (float wave, float phase) noexcept
 
 struct Modulation
 {
-    float lfo = 0.0f;
+    float lfoPhase = 0.0f;       // phase at the start of the block
+    float lfoRate = 0.0f;        // cycles per second
     float lfoFade = 0.0f;
-    float bendSemis = 0.0f;
-    float ribbonSemis = 0.0f;
+    float bendSemisFrom = 0.0f, bendSemisTo = 0.0f;
+    float ribbonSemisFrom = 0.0f, ribbonSemisTo = 0.0f;
     float modWheel = 0.0f;
     float channelPressure = 0.0f;
 };
@@ -54,12 +72,17 @@ public:
     void prepare (double newSampleRate)
     {
         sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;
-        bufferSize = std::max (64, (int) (sampleRate * 0.05) + 8);
+        bufferSize = std::max (256, (int) (sampleRate * 0.06) + 8);
         bufferL.assign ((size_t) bufferSize, 0.0f);
         bufferR.assign ((size_t) bufferSize, 0.0f);
-        write = 0;
-        phases = { 0.0f, 0.33f, 0.67f };
-        feedbackL = feedbackR = 0.0f;
+
+        // The feedback path is high-passed so the ensemble can never pile up
+        // low end, and the wet signal is gently low-passed so it stays silky
+        // instead of adding hiss.
+        feedbackHighpassCoeff = 1.0f - std::exp (-2.0f * kPi * 170.0f / (float) sampleRate);
+        toneCoeff = 1.0f - std::exp (-2.0f * kPi * 7800.0f / (float) sampleRate);
+
+        reset();
     }
 
     void reset()
@@ -68,7 +91,10 @@ public:
         std::fill (bufferR.begin(), bufferR.end(), 0.0f);
         write = 0;
         phases = { 0.0f, 0.33f, 0.67f };
+        slowPhase = 0.0f;
         feedbackL = feedbackR = 0.0f;
+        feedbackHighpassL = feedbackHighpassR = 0.0f;
+        toneL = toneR = 0.0f;
     }
 
     void process (float* left, float* right, int numSamples, float amount)
@@ -76,31 +102,36 @@ public:
         if (amount <= 0.0005f || bufferSize <= 0)
             return;
 
-        const float baseDelay[3] = { 0.0095f, 0.0145f, 0.0210f };
-        const float depth = 0.0024f;
-        const float rate[3] = { 0.31f, 0.43f, 0.27f };
-        const float tapGain[3] = { 0.5f, 0.32f, 0.22f };
+        const float baseDelay[3] = { 0.0091f, 0.0143f, 0.0207f };
+        const float depth = 0.0029f;
+        const float rate[3] = { 0.27f, 0.39f, 0.21f };
+        const float tapGain[3] = { 0.54f, 0.33f, 0.22f };
 
-        const float dryGain = 1.0f - 0.30f * amount;
+        const float dryGain = 1.0f - 0.22f * amount;
         const float wetGain = 0.72f * amount;
+        const float slowIncrement = 0.11f / (float) sampleRate;
 
         for (int i = 0; i < numSamples; ++i)
         {
             const float inL = left[i];
             const float inR = right[i];
 
-            bufferL[(size_t) write] = inL + feedbackL * 0.12f;
-            bufferR[(size_t) write] = inR + feedbackR * 0.12f;
+            bufferL[(size_t) write] = inL + feedbackL;
+            bufferR[(size_t) write] = inR + feedbackR;
+
+            // A very slow wobble of the whole delay line gives the ensemble
+            // the gentle pitch drift a real string machine has.
+            const float drift = 1.0f + 0.06f * std::sin (2.0f * kPi * slowPhase);
 
             float wetL = 0.0f, wetR = 0.0f;
 
             for (int tap = 0; tap < 3; ++tap)
             {
                 const float modL = std::sin (2.0f * kPi * phases[(size_t) tap]);
-                const float modR = std::sin (2.0f * kPi * (phases[(size_t) tap] + 0.37f));
+                const float modR = std::sin (2.0f * kPi * (phases[(size_t) tap] + 0.41f));
 
-                const float delayL = (baseDelay[tap] + depth * modL) * (float) sampleRate;
-                const float delayR = (baseDelay[tap] + depth * modR) * (float) sampleRate;
+                const float delayL = (baseDelay[tap] * drift + depth * modL) * (float) sampleRate;
+                const float delayR = (baseDelay[tap] * drift + depth * modR) * (float) sampleRate;
 
                 wetL += tapGain[tap] * readInterpolated (bufferL, delayL);
                 wetR += tapGain[tap] * readInterpolated (bufferR, delayR);
@@ -110,11 +141,20 @@ public:
                     phases[(size_t) tap] -= 1.0f;
             }
 
-            feedbackL = wetL;
-            feedbackR = wetR;
+            slowPhase += slowIncrement;
+            if (slowPhase >= 1.0f)
+                slowPhase -= 1.0f;
 
-            left[i] = inL * dryGain + wetL * wetGain;
-            right[i] = inR * dryGain + wetR * wetGain;
+            feedbackHighpassL += (wetL - feedbackHighpassL) * feedbackHighpassCoeff;
+            feedbackHighpassR += (wetR - feedbackHighpassR) * feedbackHighpassCoeff;
+            feedbackL = flushDenormal ((wetL - feedbackHighpassL) * 0.20f);
+            feedbackR = flushDenormal ((wetR - feedbackHighpassR) * 0.20f);
+
+            toneL = flushDenormal (toneL + (wetL - toneL) * toneCoeff);
+            toneR = flushDenormal (toneR + (wetR - toneR) * toneCoeff);
+
+            left[i] = inL * dryGain + toneL * wetGain;
+            right[i] = inR * dryGain + toneR * wetGain;
 
             if (++write >= bufferSize)
                 write = 0;
@@ -139,7 +179,11 @@ private:
     int write = 0;
     std::vector<float> bufferL, bufferR;
     std::array<float, 3> phases { 0.0f, 0.33f, 0.67f };
+    float slowPhase = 0.0f;
     float feedbackL = 0.0f, feedbackR = 0.0f;
+    float feedbackHighpassL = 0.0f, feedbackHighpassR = 0.0f;
+    float toneL = 0.0f, toneR = 0.0f;
+    float feedbackHighpassCoeff = 1.0f, toneCoeff = 1.0f;
 };
 
 //==============================================================================
@@ -269,10 +313,19 @@ struct Voice
         filterEnv.prepare (sampleRate);
         hpf.reset();
         lpf.reset();
+        active = false;
+        cutoffSmooth = 1400.0f;
     }
 
     void start (int midiNote, float newVelocity, uint64_t newAge, const Params& p)
     {
+        // A stolen voice is retriggered from wherever it is: keeping its
+        // oscillator phase and filter state is what stops the changeover
+        // from clicking.
+        const bool steal = active;
+        const float ampStart = steal ? ampEnv.getValue() : 0.0f;
+        const float filterStart = steal ? filterEnv.getValue() : p.fIl;
+
         active = true;
         released = false;
         held = false;
@@ -281,16 +334,28 @@ struct Voice
         age = newAge;
         polyPressure = -1.0f;
 
-        osc1.reset (0.0);
-        osc2.reset (0.33);
+        noiseState = 0x9e3779b9u
+                   ^ ((uint32_t) midiNote * 2654435761u)
+                   ^ ((uint32_t) newAge * 2246822519u);
 
-        ampEnv.trigger (0.0f);
-        filterEnv.trigger (p.fIl);
+        if (! steal)
+        {
+            // Free-running phases. Eight voices that all start at phase zero
+            // stack into one giant comb filter; scattered phases sound like
+            // an ensemble of oscillators instead.
+            osc1.reset (nextRandom01());
+            osc2.reset (nextRandom01());
+            hpf.reset();
+            lpf.reset();
+            cutoffSmooth = p.lpfCutoff;
+        }
 
-        hpf.reset();
-        lpf.reset();
-        lastCutoff = p.lpfCutoff;
-        noiseState = 0x9e3779b9u ^ ((uint32_t) midiNote * 2654435761u);
+        ampEnv.trigger (ampStart);
+        filterEnv.trigger (filterStart);
+
+        driftPhase1 = nextRandom01();
+        driftPhase2 = nextRandom01();
+        driftOffset = (nextRandom01() - 0.5f) * 2.2f;
 
         pan = 0.0f;
         panL = 0.70710678f;
@@ -333,70 +398,122 @@ struct Voice
         if (! active)
             return;
 
+        const float chunkSeconds = (float) numSamples / (float) sampleRate;
+
+        // Slow, deterministic per-voice drift. Nothing in an analogue polysynth
+        // ever sits perfectly still, and that tiny motion is most of what makes
+        // stacked voices sound alive rather than sampled.
+        driftPhase1 += 0.071f * chunkSeconds;
+        driftPhase2 += 0.113f * chunkSeconds;
+
+        if (driftPhase1 >= 1.0f)
+            driftPhase1 -= 1.0f;
+
+        if (driftPhase2 >= 1.0f)
+            driftPhase2 -= 1.0f;
+
+        const float driftCents = driftOffset
+                               + 2.0f * std::sin (2.0f * kPi * driftPhase1)
+                               + 1.2f * std::sin (2.0f * kPi * driftPhase2);
+
         const float pressure = polyPressure >= 0.0f ? polyPressure : mod.channelPressure;
         const float aftertouch = pressure * p.aftertouch;
 
-        const float vibratoCents = mod.lfo * mod.lfoFade
-                                 * (p.lfoPitch * (18.0f + 42.0f * mod.modWheel) + aftertouch * 22.0f);
-
-        const float pitchSemis = mod.bendSemis + mod.ribbonSemis + vibratoCents / 100.0f;
-
-        const double f1 = 440.0 * std::exp2 ((note - 69.0
-                                              + pitchSemis
-                                              + p.vco1Octave * 12.0
-                                              + p.vco1Detune / 100.0) / 12.0);
-
-        const double f2 = 440.0 * std::exp2 ((note - 69.0
-                                              + pitchSemis
-                                              + p.vco2Octave * 12.0
-                                              + p.vco2Detune / 100.0) / 12.0);
-
-        osc1.setFrequency (sampleRate, f1);
-        osc2.setFrequency (sampleRate, f2);
-
-        const float pulseWidth = clampf (p.vco2Pw
-                                         + mod.lfo * mod.lfoFade * p.lfoPwm * 0.35f
-                                         + aftertouch * 0.08f,
-                                         0.03f, 0.97f);
-
         const float keytrack = (float) (note - 60) / 12.0f * 0.35f;
-        const float cutoffOctaves = keytrack
-                                  + (filterEnv.getValue() - 0.35f) * 4.5f
-                                  + mod.lfo * mod.lfoFade * p.lfoFilter * 2.0f
-                                  + aftertouch * 1.6f;
+        const float velocityOctaves = (velocity - 0.5f) * p.velocity * 2.0f;
 
-        const float targetCutoff = clampf (p.lpfCutoff * std::exp2 (cutoffOctaves),
-                                           25.0f, (float) sampleRate * 0.45f);
-        lastCutoff += (targetCutoff - lastCutoff) * 0.35f;
-        lastCutoff = flushDenormal (lastCutoff);
+        const float lpfQ = 0.7f + p.lpfRes * 11.0f;
+
+        // The filter core is overdriven a touch, like the CS-80's. Drive that
+        // follows the resonance keeps screaming patches in check.
+        const float drive = 1.22f + 1.30f * p.lpfRes;
+        const float driveComp = 1.0f / (0.60f * drive + 0.40f);
 
         const float hpCutoff = clampf (p.hpfCutoff * std::exp2 ((float) (note - 60) / 12.0f * 0.15f),
                                        20.0f, 6000.0f);
-
         hpf.setCoefficients (sampleRate, hpCutoff, 0.7f + p.hpfRes * 6.0f);
-        lpf.setCoefficients (sampleRate, lastCutoff, 0.7f + p.lpfRes * 11.0f);
 
         const float velocityGain = 1.0f - p.velocity + p.velocity * velocity;
-        const float tremoloDepth = p.lfoAmp * mod.lfoFade;
         const float ampGain = velocityGain * (1.0f + 0.15f * aftertouch);
+        const float cutoffCoeff = smoothingCoefficient (0.0018f, sampleRate, kControlBlock);
 
-        for (int i = 0; i < numSamples; ++i)
+        float lfoPhase = mod.lfoPhase;
+
+        for (int start = 0; start < numSamples; start += kControlBlock)
         {
-            const float amp = ampEnv.process();
-            filterEnv.process();
+            const int n = std::min (kControlBlock, numSamples - start);
 
-            const float saw = osc1.saw();
-            const float pulse = osc2.pulse (pulseWidth);
-            const float noise = nextNoise();
+            const float lfo = lfoWaveform (p.lfoWave, lfoPhase);
+            lfoPhase += mod.lfoRate * (float) n / (float) sampleRate;
 
-            const float raw = 0.55f * (saw * p.vco1Level + pulse * p.vco2Level)
-                            + 0.32f * (saw * pulse) * p.ring
-                            + 0.10f * noise * p.noise;
+            if (lfoPhase >= 1.0f)
+                lfoPhase -= 1.0f;
 
-            const float filtered = lpf.lowpass (hpf.highpass (raw));
-            const float tremolo = 1.0f - tremoloDepth * (0.5f - 0.5f * mod.lfo);
+            const float modAmount = lfo * mod.lfoFade;
 
-            destination[i] += filtered * amp * ampGain * tremolo;
+            // Bend and ribbon glides are interpolated across the chunk, so the
+            // pitch curve does not depend on the host's buffer size.
+            const float progress = (float) start / (float) numSamples;
+            const float baseSemis = lerpf (mod.bendSemisFrom, mod.bendSemisTo, progress)
+                                  + lerpf (mod.ribbonSemisFrom, mod.ribbonSemisTo, progress)
+                                  + driftCents * 0.01f;
+
+            const float vibratoCents = modAmount
+                                     * (p.lfoPitch * (18.0f + 42.0f * mod.modWheel) + aftertouch * 22.0f);
+
+            const float pitchSemis = baseSemis + vibratoCents * 0.01f;
+
+            const double f1 = 440.0 * std::exp2 ((note - 69.0
+                                                  + pitchSemis
+                                                  + p.vco1Octave * 12.0
+                                                  + p.vco1Detune * 0.01) / 12.0);
+
+            const double f2 = 440.0 * std::exp2 ((note - 69.0
+                                                  + pitchSemis
+                                                  + p.vco2Octave * 12.0
+                                                  + p.vco2Detune * 0.01) / 12.0);
+
+            osc1.setFrequency (sampleRate, f1);
+            osc2.setFrequency (sampleRate, f2);
+
+            const float pulseWidth = clampf (p.vco2Pw
+                                             + modAmount * p.lfoPwm * 0.35f
+                                             + aftertouch * 0.08f,
+                                             0.03f, 0.97f);
+
+            const float cutoffOctaves = keytrack
+                                      + (filterEnv.getValue() - 0.35f) * 4.5f
+                                      + modAmount * p.lfoFilter * 2.0f
+                                      + aftertouch * 1.6f
+                                      + velocityOctaves;
+
+            const float targetCutoff = clampf (p.lpfCutoff * std::exp2 (cutoffOctaves),
+                                               25.0f, (float) sampleRate * 0.45f);
+
+            cutoffSmooth += (targetCutoff - cutoffSmooth) * cutoffCoeff;
+            cutoffSmooth = clampf (flushDenormal (cutoffSmooth), 20.0f, (float) sampleRate * 0.45f);
+            lpf.setCoefficients (sampleRate, cutoffSmooth, lpfQ);
+
+            const float tremolo = 1.0f - p.lfoAmp * mod.lfoFade * (0.5f - 0.5f * lfo);
+
+            for (int j = 0; j < n; ++j)
+            {
+                const float amp = ampEnv.process();
+                filterEnv.process();
+
+                const float saw = osc1.saw();
+                const float pulse = osc2.pulse (pulseWidth);
+                const float noise = nextNoise();
+
+                const float raw = 0.55f * (saw * p.vco1Level + pulse * p.vco2Level)
+                                + 0.32f * (saw * pulse) * p.ring
+                                + 0.10f * noise * p.noise;
+
+                const float saturated = fastTanh (hpf.highpass (raw) * drive) * driveComp;
+                const float filtered = lpf.lowpass (saturated);
+
+                destination[start + j] += filtered * amp * ampGain * tremolo;
+            }
         }
 
         if (! ampEnv.isActive())
@@ -409,6 +526,11 @@ struct Voice
         noiseState ^= noiseState >> 17;
         noiseState ^= noiseState << 5;
         return (float) ((int32_t) noiseState) / 2147483648.0f;
+    }
+
+    float nextRandom01() noexcept
+    {
+        return (nextNoise() + 1.0f) * 0.5f;
     }
 
     double sampleRate = 48000.0;
@@ -424,7 +546,8 @@ struct Voice
     Oscillator osc1, osc2;
     Envelope ampEnv, filterEnv;
     SVF hpf, lpf;
-    float lastCutoff = 2400.0f;
+    float cutoffSmooth = 1400.0f;
+    float driftPhase1 = 0.0f, driftPhase2 = 0.0f, driftOffset = 0.0f;
     float pan = 0.0f, panL = 0.70710678f, panR = 0.70710678f;
 };
 } // namespace
@@ -454,7 +577,7 @@ struct Engine::Impl
 
     float lfoPhase = 0.0f;
     float lfoElapsed = 0.0f;
-    float gainSmoothed = 0.6f;
+    float gainSmoothed = kOutputTrim * 0.6f;
     bool hasRendered = false;
     float brillianceLpL = 0.0f, brillianceLpR = 0.0f;
     float dcX1L = 0.0f, dcY1L = 0.0f, dcX1R = 0.0f, dcY1R = 0.0f;
@@ -484,7 +607,7 @@ struct Engine::Impl
         ribbonSmoothed = ribbonTarget;
         lfoPhase = 0.0f;
         lfoElapsed = 0.0f;
-        gainSmoothed = dbToGain (params.masterDb) * 0.80f;
+        gainSmoothed = dbToGain (params.masterDb) * kOutputTrim;
         hasRendered = false;
         brillianceLpL = brillianceLpR = 0.0f;
         dcX1L = dcY1L = dcX1R = dcY1R = 0.0f;
@@ -550,32 +673,31 @@ struct Engine::Impl
         const int count = std::count_if (voices.begin(), voices.end(),
                                          [] (const Voice& v) { return v.active; });
 
-        bendSmoothed += (bendTarget - bendSmoothed) * 0.25f;
-        ribbonSmoothed += (ribbonTarget - ribbonSmoothed) * 0.45f;
+        const float bendPrevious = bendSmoothed;
+        const float ribbonPrevious = ribbonSmoothed;
+
+        bendSmoothed += (bendTarget - bendSmoothed)
+                      * smoothingCoefficient (0.014f, sampleRate, numSamples);
+        ribbonSmoothed += (ribbonTarget - ribbonSmoothed)
+                        * smoothingCoefficient (0.007f, sampleRate, numSamples);
 
         if (count == 0)
-        {
             lfoElapsed = 0.0f;
-        }
         else
-        {
             lfoElapsed += (float) numSamples / (float) sampleRate;
-        }
 
-        lfoPhase += params.lfoRate * (float) numSamples / (float) sampleRate;
-        while (lfoPhase >= 1.0f)
-            lfoPhase -= 1.0f;
-
-        const float lfo = lfoWaveform (params.lfoWave, lfoPhase);
         const float fade = params.lfoDelay <= 0.0f
                              ? (count > 0 ? 1.0f : 0.0f)
                              : clampf ((lfoElapsed - params.lfoDelay) / 0.35f, 0.0f, 1.0f);
 
         Modulation mod;
-        mod.lfo = lfo;
+        mod.lfoPhase = lfoPhase;
+        mod.lfoRate = params.lfoRate;
         mod.lfoFade = fade;
-        mod.bendSemis = bendSmoothed * params.bendRange;
-        mod.ribbonSemis = ribbonSmoothed * 12.0f;
+        mod.bendSemisFrom = bendPrevious * params.bendRange;
+        mod.bendSemisTo = bendSmoothed * params.bendRange;
+        mod.ribbonSemisFrom = ribbonPrevious * 12.0f;
+        mod.ribbonSemisTo = ribbonSmoothed * 12.0f;
         mod.modWheel = modWheel;
         mod.channelPressure = channelPressure;
 
@@ -612,14 +734,21 @@ struct Engine::Impl
             ++voiceIndex;
         }
 
+        lfoPhase += params.lfoRate * (float) numSamples / (float) sampleRate;
+        while (lfoPhase >= 1.0f)
+            lfoPhase -= 1.0f;
+
         chorus.process (mixL.data(), mixR.data(), numSamples, params.ensemble);
         reverb.process (mixL.data(), mixR.data(), numSamples, params.space);
 
         // A little fixed headroom trim keeps eight voices + ensemble from
         // sitting on the limiter, while the master fader keeps its dB scale.
-        constexpr float outputTrim = 0.80f;
-        const float targetGain = dbToGain (params.masterDb) * outputTrim;
-        gainSmoothed += (targetGain - gainSmoothed) * 0.08f;
+        const float targetGain = dbToGain (params.masterDb) * kOutputTrim;
+        const float gainFrom = gainSmoothed;
+        gainSmoothed += (targetGain - gainSmoothed)
+                      * smoothingCoefficient (0.035f, sampleRate, numSamples);
+        const float gainStep = (gainSmoothed - gainFrom) / (float) numSamples;
+        float gain = gainFrom;
 
         const float tiltCoeff = 1.0f - std::exp (-2.0f * kPi * 2200.0f / (float) sampleRate);
 
@@ -636,8 +765,9 @@ struct Engine::Impl
             l += params.brilliance * (l - brillianceLpL) * 0.8f;
             r += params.brilliance * (r - brillianceLpR) * 0.8f;
 
-            l *= gainSmoothed;
-            r *= gainSmoothed;
+            l *= gain;
+            r *= gain;
+            gain += gainStep;
 
             const float dcL = l - dcX1L + 0.9985f * dcY1L;
             dcX1L = l;
@@ -719,7 +849,7 @@ void Engine::setParams (const Params& newParams)
     // Before the first block (typical when a preset is loaded right after
     // prepareToPlay) snap the gain instead of gliding from the previous patch.
     if (! impl->hasRendered)
-        impl->gainSmoothed = dbToGain (newParams.masterDb) * 0.80f;
+        impl->gainSmoothed = dbToGain (newParams.masterDb) * kOutputTrim;
 }
 
 Params Engine::params() const

@@ -177,9 +177,18 @@ public:
 
     void setTimes (float attackSeconds, float decaySeconds, float releaseSeconds) noexcept
     {
-        attackTime = std::max (attackSeconds, 0.0005f);
-        decayTime = std::max (decaySeconds, 0.0005f);
-        releaseTime = std::max (releaseSeconds, 0.0005f);
+        attackSeconds = std::max (attackSeconds, 0.0005f);
+        decaySeconds = std::max (decaySeconds, 0.0005f);
+        releaseSeconds = std::max (releaseSeconds, 0.0005f);
+
+        // The engine re-sends the whole patch on every block; skip the exp()
+        // work unless the times actually moved.
+        if (attackSeconds == attackTime && decaySeconds == decayTime && releaseSeconds == releaseTime)
+            return;
+
+        attackTime = attackSeconds;
+        decayTime = decaySeconds;
+        releaseTime = releaseSeconds;
         updateCoefficients();
     }
 
@@ -188,7 +197,9 @@ public:
         attackTarget = clampf (attackLevel, 0.0f, 1.0f);
         sustain = clampf (sustainLevel, 0.0f, 1.0f);
 
-        if (stage == Stage::Decay)
+        if (stage == Stage::Attack)
+            target = attackTarget;
+        else if (stage == Stage::Decay)
             target = sustain;
         else if (stage == Stage::Sustain)
             value = sustain;
