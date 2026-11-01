@@ -7,6 +7,24 @@
 
 namespace cs80::ui
 {
+namespace
+{
+void drawTraceLegend (juce::Graphics& g, juce::Point<float> origin)
+{
+    g.setFont (monoFont (6.3f, true));
+
+    g.setColour (colour::amberHot);
+    g.fillEllipse (origin.x, origin.y + 3.4f, 3.4f, 3.4f);
+    g.drawText ("L", juce::Rectangle<int> ((int) origin.x + 6, (int) origin.y, 10, 9),
+                juce::Justification::centredLeft, false);
+
+    g.setColour (colour::ice);
+    g.fillEllipse (origin.x + 24.0f, origin.y + 3.4f, 3.4f, 3.4f);
+    g.drawText ("R", juce::Rectangle<int> ((int) origin.x + 30, (int) origin.y, 10, 9),
+                juce::Justification::centredLeft, false);
+}
+} // namespace
+
 //==============================================================================
 ScopeDisplay::ScopeDisplay (const Engine& engineToUse) : engine (engineToUse)
 {
@@ -133,17 +151,15 @@ void ScopeDisplay::paint (juce::Graphics& g)
                                              screen.getCentreX(), screen.getY() + screen.getHeight() * 0.36f, false));
     g.fillRoundedRectangle (screen.reduced (1.0f), 2.0f);
 
-    drawTrackedText (g, "DUAL TRACE", { (int) inner.getX(), (int) inner.getY() - 1, 74, 8 },
-                     colour::amberDim.brighter (0.62f), juce::Justification::centredLeft,
-                     monoFont (5.7f, true), 0.5f);
+    drawTrackedText (g, "DUAL TRACE", { (int) inner.getX(), (int) inner.getY() - 1, 82, 9 },
+                     colour::amberDim.brighter (0.82f), juce::Justification::centredLeft,
+                     monoFont (6.5f, true), 0.5f);
 
-    drawTrackedText (g, "L / R", { (int) inner.getRight() - 46, (int) inner.getY() - 1, 46, 8 },
-                     colour::amberDim.brighter (0.56f), juce::Justification::centredRight,
-                     monoFont (5.6f), 0.4f);
+    drawTraceLegend (g, { (float) inner.getRight() - 66.0f, (float) inner.getY() - 1.0f });
 
-    drawTrackedText (g, "POST FX", { (int) inner.getRight() - 58, (int) inner.getBottom() - 8, 58, 7 },
-                     colour::amberDim.brighter (0.44f), juce::Justification::centredRight,
-                     monoFont (5.2f), 0.4f);
+    drawTrackedText (g, "POST FX", { (int) inner.getRight() - 62, (int) inner.getBottom() - 9, 62, 8 },
+                     colour::amberDim.brighter (0.62f), juce::Justification::centredRight,
+                     monoFont (5.9f), 0.4f);
 }
 
 //==============================================================================
@@ -340,20 +356,20 @@ void RibbonStrip::paint (juce::Graphics& g)
     g.setColour (juce::Colours::white.withAlpha (0.55f));
     g.drawLine (thumb.getX() + 3.0f, thumb.getY() + 1.8f, thumb.getRight() - 3.0f, thumb.getY() + 1.8f, 0.7f);
 
-    drawTrackedText (g, "PITCH RIBBON", { 20, 1, 100, 9 }, colour::textDim.brighter (0.32f),
-                     juce::Justification::centredLeft, trackedFont (6.7f, 1.5f, true), 0.3f);
+    drawTrackedText (g, "PITCH RIBBON", { 20, 0, 110, 10 }, colour::textDim.brighter (0.42f),
+                     juce::Justification::centredLeft, trackedFont (7.6f, 1.5f, true), 0.3f);
 
-    drawTrackedText (g, "SPRING RETURN  ·  ±12 ST", { 112, 1, 150, 9 },
-                     colour::textFaint.brighter (0.28f), juce::Justification::centredLeft,
-                     monoFont (5.4f), 0.2f);
+    drawTrackedText (g, "SPRING RETURN  ·  ±12 ST", { 118, 1, 160, 9 },
+                     colour::textFaint.brighter (0.38f), juce::Justification::centredLeft,
+                     monoFont (6.2f), 0.2f);
 
     const auto semitones = value * 12.0f;
     const juce::String readout = (semitones >= 0.0f ? "+" : "")
                                + juce::String (semitones, 1) + " ST";
 
-    drawTrackedText (g, readout, { getWidth() - 92, 1, 74, 9 },
-                     dragging ? colour::amberHot : colour::textDim.brighter (0.15f),
-                     juce::Justification::centredRight, monoFont (6.9f, true), 0.3f);
+    drawTrackedText (g, readout, { getWidth() - 98, 0, 78, 10 },
+                     dragging ? colour::amberHot : colour::textDim.brighter (0.22f),
+                     juce::Justification::centredRight, monoFont (7.8f, true), 0.3f);
 }
 
 void RibbonStrip::setFromMouse (float x)
@@ -611,14 +627,14 @@ void Cs80Keyboard::paint (juce::Graphics& g)
 
     drawTrackedText (g, "CS-80E  /  POLYPHONIC KEYBED", nameplate.toNearestInt(),
                      juce::Colour (0xff201207), juce::Justification::centred,
-                     trackedFont (5.4f, 1.2f, true), 0.2f);
+                     trackedFont (6.1f, 1.2f, true), 0.2f);
 
-    drawLed (g, { (float) getWidth() - 18.0f, 5.5f, 4.0f, 4.0f }, true, colour::amber, 0.50f);
+    drawLed (g, { (float) getWidth() - 18.0f, 5.5f, 4.4f, 4.4f }, true, colour::amber, 0.60f);
 
     drawTrackedText (g, "61 KEY  /  VELOCITY + POLY TOUCH  /  C2 - C7",
-                     { getWidth() - 366, 3, 338, 9 },
-                     colour::textFaint.brighter (0.16f), juce::Justification::centredRight,
-                     monoFont (5.3f), 0.2f);
+                     { getWidth() - 380, 2, 352, 10 },
+                     colour::textFaint.brighter (0.26f), juce::Justification::centredRight,
+                     monoFont (6.1f), 0.2f);
 
     // Red felt strip.
     drawFeltRail (g, bounds.withY (15.0f).withHeight (4.0f));
@@ -631,9 +647,9 @@ void Cs80Keyboard::paint (juce::Graphics& g)
         g.setColour (juce::Colours::black.withAlpha (0.62f));
         g.fillRoundedRectangle (key.bounds.translated (0.0f, 2.0f), 2.5f);
 
-        juce::ColourGradient ivory (down ? juce::Colour (0xffffd39a) : juce::Colour (0xfffbf4e7),
+        juce::ColourGradient ivory (down ? juce::Colour (0xffffd39a) : juce::Colour (0xfffffaf0),
                                     key.bounds.getCentreX(), key.bounds.getY(),
-                                    down ? juce::Colour (0xffc68b43) : juce::Colour (0xffcbbca3),
+                                    down ? juce::Colour (0xffc68b43) : juce::Colour (0xffb9a586),
                                     key.bounds.getCentreX(), key.bounds.getBottom(), false);
         ivory.addColour (0.18, down ? juce::Colour (0xffffe4bb) : juce::Colour (0xfffffbf2));
         ivory.addColour (0.72, down ? juce::Colour (0xffd9a055) : juce::Colour (0xffded0b8));
@@ -675,7 +691,7 @@ void Cs80Keyboard::paint (juce::Graphics& g)
                                  .withHeight (11.0f)
                                  .toNearestInt(),
                              down ? juce::Colour (0xff4a2c0c) : juce::Colour (0xff75634b),
-                             juce::Justification::centred, monoFont (8.0f, true), 0.2f);
+                             juce::Justification::centred, monoFont (8.7f, true), 0.2f);
 
             g.setColour (colour::amber.withAlpha (down ? 0.85f : 0.30f));
             g.fillEllipse (key.bounds.getCentreX() - 1.3f,

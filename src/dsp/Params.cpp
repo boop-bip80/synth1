@@ -40,6 +40,7 @@ const FieldRef kFields[] = {
     { pid::master,     &Params::masterDb },
     { pid::brilliance, &Params::brilliance },
     { pid::ensemble,   &Params::ensemble },
+    { pid::ensembleMode, &Params::ensembleMode },
     { pid::space,      &Params::space },
     { pid::ring,       &Params::ring },
     { pid::noise,      &Params::noise },
@@ -107,6 +108,7 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::master, "Master", "OUTPUT", -24.0f, 12.0f, -4.0f, 1.0f, 0, "dB" },
         { pid::brilliance, "Brilliance", "OUTPUT", -1.0f, 1.0f, 0.0f, 1.0f, 0, "" },
         { pid::ensemble, "Ensemble", "OUTPUT", 0.0f, 1.0f, 0.38f, 1.0f, 0, "" },
+        { pid::ensembleMode, "Ensemble Mode", "OUTPUT", 0.0f, 2.0f, 1.0f, 1.0f, 3, "", "CHOR I|CHOR II|TREM" },
         { pid::space, "Space", "OUTPUT", 0.0f, 1.0f, 0.16f, 1.0f, 0, "" },
 
         { pid::ring, "Ring Mod", "RING", 0.0f, 1.0f, 0.05f, 1.0f, 0, "" },
@@ -289,6 +291,7 @@ float clampToSpec (const std::string& id, float value)
                      || spec->id == pid::vco2Octave
                      || spec->id == pid::layerOctave
                      || spec->id == pid::layerMode
+                     || spec->id == pid::ensembleMode
                      || spec->id == pid::splitPoint
                      || (spec->steps > 0 && std::string (spec->id).rfind ("mod", 0) == 0);
 

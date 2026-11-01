@@ -6,68 +6,69 @@ namespace cs80::ui
 {
 namespace colour
 {
-// The Series 5 panel is a black-lacquer instrument: graphite and cold steel
-// under warm brass work lights, with walnut cheeks and amber glass. Accents are
-// jewel tones, one per section, so the whole surface reads at a glance.
-inline const juce::Colour windowBg    { 0xff02050a };
-inline const juce::Colour stageTop    { 0xff07131c };
-inline const juce::Colour stageBottom { 0xff010204 };
+// The Series 5 panel is a warm-lacquer instrument: near-black walnut and
+// smoked bronze under brass work lights, with an aged-ivory legend silkscreen
+// and jewel-tone section cards. The palette is deliberately warmer and more
+// saturated than a plain dark UI, so the whole surface reads as a lit object.
+inline const juce::Colour windowBg    { 0xff050402 };
+inline const juce::Colour stageTop    { 0xff120d08 };
+inline const juce::Colour stageBottom { 0xff020201 };
 
-inline const juce::Colour woodDark    { 0xff170904 };
-inline const juce::Colour woodMid     { 0xff4f2513 };
-inline const juce::Colour woodLight   { 0xffa96a38 };
-inline const juce::Colour woodHot     { 0xffe5a96c };
+inline const juce::Colour woodDark    { 0xff1a0b05 };
+inline const juce::Colour woodMid     { 0xff5a2a14 };
+inline const juce::Colour woodLight   { 0xffb97a41 };
+inline const juce::Colour woodHot     { 0xfff0c084 };
 
-inline const juce::Colour panelTop    { 0xff24333f };
-inline const juce::Colour panelMid    { 0xff0f1921 };
-inline const juce::Colour panelBottom { 0xff050a0e };
+inline const juce::Colour panelTop    { 0xff453b2f };
+inline const juce::Colour panelMid    { 0xff211b15 };
+inline const juce::Colour panelBottom { 0xff080604 };
 
-inline const juce::Colour plateTop    { 0xff1e2c37 };
-inline const juce::Colour plateMid    { 0xff0c151c };
-inline const juce::Colour plateBottom { 0xff04080b };
+inline const juce::Colour plateTop    { 0xff3a3127 };
+inline const juce::Colour plateMid    { 0xff1a1510 };
+inline const juce::Colour plateBottom { 0xff060504 };
 
-inline const juce::Colour line        { 0xff405265 };
-inline const juce::Colour shadow      { 0xff010203 };
-inline const juce::Colour text        { 0xfff7efdf };
-inline const juce::Colour textDim     { 0xffd8cab4 };
-inline const juce::Colour textFaint   { 0xffa79a87 };
+inline const juce::Colour line        { 0xff5b4a37 };
+inline const juce::Colour shadow      { 0xff010101 };
+inline const juce::Colour text        { 0xfffaf0dc };
+inline const juce::Colour textDim     { 0xffe3d1b4 };
+inline const juce::Colour textFaint   { 0xffb7a184 };
 
-inline const juce::Colour amber       { 0xffffb45f };
-inline const juce::Colour amberHot    { 0xffffe7ba };
-inline const juce::Colour amberDim    { 0xff8b5b26 };
-inline const juce::Colour gold        { 0xffecc781 };
-inline const juce::Colour brass       { 0xffd9ae72 };
-inline const juce::Colour brassDark   { 0xff6f502a };
-inline const juce::Colour brassLight  { 0xfff3d7a3 };
+inline const juce::Colour amber       { 0xffffb35c };
+inline const juce::Colour amberHot    { 0xffffe6b8 };
+inline const juce::Colour amberDim    { 0xff9a6428 };
+inline const juce::Colour gold        { 0xfff4cf8a };
+inline const juce::Colour brass       { 0xffe0b273 };
+inline const juce::Colour brassDark   { 0xff7c582c };
+inline const juce::Colour brassLight  { 0xfff8dfb0 };
 
-inline const juce::Colour lcdBg       { 0xff080502 };
-inline const juce::Colour lcdText     { 0xffffcb82 };
-inline const juce::Colour lcdGlow     { 0xffffa640 };
+inline const juce::Colour lcdBg       { 0xff0a0603 };
+inline const juce::Colour lcdText     { 0xffffcc85 };
+inline const juce::Colour lcdGlow     { 0xffffa63c };
 
-inline const juce::Colour red         { 0xffff7b59 };
-inline const juce::Colour green       { 0xffa6e3b4 };
-inline const juce::Colour steel       { 0xffaab9c7 };
-inline const juce::Colour keyIvory    { 0xfff8f0de };
-inline const juce::Colour cream       { 0xfffcf4e3 };
-inline const juce::Colour copper      { 0xffffa274 };
-inline const juce::Colour sage        { 0xffa5e0b9 };
-inline const juce::Colour slate       { 0xff8ccdf2 };
-inline const juce::Colour rose        { 0xffffa6c5 };
-inline const juce::Colour violet      { 0xffc7b4f2 };
-inline const juce::Colour cyan        { 0xff7fe3dc };
-inline const juce::Colour felt        { 0xff7a2026 };
-inline const juce::Colour keyBlack    { 0xff10161b };
-inline const juce::Colour keyBlackHi  { 0xff4d5861 };
+inline const juce::Colour red         { 0xffff6f55 };
+inline const juce::Colour green       { 0xffa9e3b0 };
+inline const juce::Colour steel       { 0xffb9c6d2 };
+inline const juce::Colour keyIvory    { 0xfffff6e4 };
+inline const juce::Colour cream       { 0xfffff7e7 };
+inline const juce::Colour copper      { 0xffff9f6a };
+inline const juce::Colour sage        { 0xffb3e3a8 };
+inline const juce::Colour slate       { 0xff86cdec };
+inline const juce::Colour rose        { 0xffff9ab8 };
+inline const juce::Colour violet      { 0xffc3aef5 };
+inline const juce::Colour cyan        { 0xff7de8de };
+inline const juce::Colour felt        { 0xff8d1f26 };
+inline const juce::Colour keyBlack    { 0xff0c1014 };
+inline const juce::Colour keyBlackHi  { 0xff5b666f };
 
 // Additive stage light used behind the badge, LCD and scope.
-inline const juce::Colour aurora      { 0xff58d6c2 };
-inline const juce::Colour auroraDeep  { 0xff1b6d72 };
-inline const juce::Colour ice         { 0xff9bd9ff };
-inline const juce::Colour emerald     { 0xff8fe3ad };
-inline const juce::Colour tangerine   { 0xffffa56b };
-inline const juce::Colour magenta     { 0xffef9ad4 };
+inline const juce::Colour aurora      { 0xff57d9c5 };
+inline const juce::Colour auroraDeep  { 0xff1a6e72 };
+inline const juce::Colour ice         { 0xffa5dcff };
+inline const juce::Colour emerald     { 0xff8fe0ad };
+inline const juce::Colour tangerine   { 0xffff9a5c };
+inline const juce::Colour magenta     { 0xfff2a0d8 };
 
-inline const juce::Colour screenLine  { 0xffffc16e };
+inline const juce::Colour screenLine  { 0xffffc47a };
 } // namespace colour
 
 //==============================================================================

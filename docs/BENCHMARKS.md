@@ -11,7 +11,7 @@ tool on the committed engine. Nothing here is estimated or extrapolated.
 | OS | Ubuntu 24.04.5 LTS |
 | Compiler | GCC 13.3.0 |
 | Build | CMake 3.30.5, `-DCMAKE_BUILD_TYPE=Release` |
-| Engine | CS-80E 5.1.0, headless `cs80::Engine` |
+| Engine | CS-80E 5.2.0, headless `cs80::Engine` |
 | Method | 6–8 s of audio per case, single process, 64-block warm-up |
 | Timing | `std::chrono::steady_clock` around each `Engine::process()` call |
 | Allocations | Replaced global `operator new`, counted inside the timed loop |
@@ -82,7 +82,7 @@ sample-rate-scaled voice path.
 
 | Target | Result |
 | --- | --- |
-| ≤ 0.25× real time (≤ 25 % of one core) for 8 voices, dual, 48 kHz / 256, effects on | **Met**: 0.142× real time (14.23 %) |
+| ≤ 0.25× real time (≤ 25 % of one core) for 8 voices, dual, 48 kHz / 256, effects on | **Met**: 0.150× real time (14.99 %) in the 5.2 run |
 | Idle ≤ 2 % of one core | **Met**: 0.09 % |
 | No heap allocations in the audio callback | **Met**: 0 allocations across 400 callbacks, including note and parameter changes (asserted by `testRealtimeAllocations`) |
 | No deadline misses in the reference run | Worst callback 0.98 ms against a 5.33 ms deadline at 256 frames / 48 kHz; the 96 kHz outlier is 4.7 ms against a 2.67 ms deadline, caused by VM scheduling rather than DSP |
@@ -116,3 +116,20 @@ matrix cost. No performance claim is made either way; the target of 0.25x
 real-time for the full patch (measured 0.15x) is still met with room to spare.
 Latency is unchanged at 8 samples. Aliasing numbers are unchanged because the
 new features do not touch the oscillator or saturation path.
+
+## Post-5.1 console run (chorus/tremolo switch and repaint)
+
+Same VM and method, measured after the 5.2 changes. Raw output:
+[`benchmarks/v5.2-console-bench.txt`](benchmarks/v5.2-console-bench.txt),
+[`benchmarks/v5.2-console-alias.txt`](benchmarks/v5.2-console-alias.txt) and
+[`benchmarks/v5.2-console-latency.txt`](benchmarks/v5.2-console-latency.txt).
+
+| Scenario (48 kHz, 256 frames) | 5.1 avg | 5.2 avg | 5.2 p95 | 5.2 CPU | Allocations |
+| --- | --- | --- | --- | --- | --- |
+| 8 voices, dual + chorus + reverb | 759.0 µs | 794.7 µs | 833.7 µs | 14.90 % | 0 |
+| Buffer sweep 64 / 128 / 256 / 512 | 14.38–14.47 % CPU | 202.8–1588.4 µs | 248.7–1645.5 µs | 14.90–15.22 % | 0 |
+
+The full patch remains comfortably inside the 0.25x real-time target; the
+per-buffer cost stays flat, the callback still allocates nothing, aliasing is
+unchanged (the two chorus tap sets sit on the same BBD path), and latency is
+still 8 host samples.

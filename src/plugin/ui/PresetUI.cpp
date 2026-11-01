@@ -116,14 +116,15 @@ void PresetDisplay::paint (juce::Graphics& g)
     auto glass = bezel.reduced (2.5f);
     drawInsetWell (g, glass, 2.5f);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff2e1a08),
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff45270c),
                                              glass.getCentreX(), glass.getY(),
-                                             juce::Colour (0xff0a0602),
+                                             juce::Colour (0xff070402),
                                              glass.getCentreX(), glass.getBottom(), false));
     g.fillRoundedRectangle (glass.reduced (1.0f), 2.5f);
 
-    drawGlow (g, { glass.getCentreX(), glass.getCentreY() - 8.0f },
-              glass.getWidth() * 0.46f, colour::amber, 0.25f);
+    drawGlow (g, { glass.getCentreX(), glass.getCentreY() - 6.0f },
+              glass.getWidth() * 0.52f, colour::amber, 0.36f);
+    drawGlow (g, { glass.getX() + 30.0f, glass.getBottom() }, 90.0f, colour::aurora, 0.10f);
 
     g.setColour (colour::amber.withAlpha (0.18f));
     g.drawRoundedRectangle (glass.reduced (0.8f), 2.5f, 0.8f);
@@ -169,48 +170,53 @@ void PresetDisplay::paint (juce::Graphics& g)
     drawTrackedText (g, "PRESET  A" + juce::String (index + 1).paddedLeft ('0', 2)
                             + "   /   " + juce::String (presetCount()).paddedLeft ('0', 2)
                             + "   ·   FACTORY BANK A   ·   SERIES 5",
-                     { (int) inner.getX(), (int) inner.getY(), 380, 9 },
-                     colour::amberDim.brighter (1.02f), juce::Justification::centredLeft,
-                     trackedFont (5.9f, 1.5f, true), 0.3f);
+                     { (int) inner.getX(), (int) inner.getY(), 420, 10 },
+                     colour::amberDim.brighter (1.14f), juce::Justification::centredLeft,
+                     trackedFont (6.7f, 1.5f, true), 0.3f);
 
-    const juce::Rectangle<int> badge ((int) inner.getRight() - 76, (int) inner.getY() - 1, 74, 11);
-    g.setColour (categoryTint.withAlpha (0.14f));
-    g.fillRoundedRectangle (badge.toFloat(), 2.0f);
-    g.setColour (categoryTint.withAlpha (0.68f));
-    g.drawRoundedRectangle (badge.toFloat(), 2.0f, 0.7f);
-    drawTrackedText (g, category, badge.reduced (2), categoryTint,
-                     juce::Justification::centred, trackedFont (6.2f, 1.1f, true), 0.2f);
+    const juce::Rectangle<int> badge ((int) inner.getRight() - 84, (int) inner.getY() - 2, 82, 13);
+    g.setGradientFill (juce::ColourGradient (categoryTint.withAlpha (0.30f), 0.0f, (float) badge.getY(),
+                                             categoryTint.withAlpha (0.10f), 0.0f, (float) badge.getBottom(), false));
+    g.fillRoundedRectangle (badge.toFloat(), 2.4f);
+    g.setColour (categoryTint.withAlpha (0.80f));
+    g.drawRoundedRectangle (badge.toFloat(), 2.4f, 0.8f);
+    drawTrackedText (g, category, badge.reduced (2), categoryTint.brighter (0.15f),
+                     juce::Justification::centred, trackedFont (7.0f, 1.2f, true), 0.2f);
 
-    const juce::Rectangle<int> nameArea ((int) inner.getX(), (int) inner.getY() + 9,
-                                         (int) inner.getWidth() - 116, 31);
+    const juce::Rectangle<int> nameArea ((int) inner.getX(), (int) inner.getY() + 11,
+                                         (int) inner.getWidth() - 128, 36);
 
-    g.setFont (monoFont (25.0f, true));
-    g.setColour (juce::Colours::black.withAlpha (0.42f));
+    g.setFont (monoFont (29.0f, true));
+    g.setColour (juce::Colours::black.withAlpha (0.52f));
     g.drawText (name, nameArea.translated (0, 2), juce::Justification::centredLeft, true);
-    g.setColour (colour::lcdText);
+    g.setColour (colour::lcdText.brighter (0.10f));
     g.drawText (name, nameArea, juce::Justification::centredLeft, true);
 
-    g.setColour (colour::lcdText.withAlpha (0.18f));
+    g.setGradientFill (juce::ColourGradient (colour::lcdText.withAlpha (0.44f),
+                                             (float) nameArea.getX(), 0.0f,
+                                             colour::lcdText.withAlpha (0.02f),
+                                             (float) nameArea.getX() + 340.0f, 0.0f, false));
     g.fillRect ((float) nameArea.getX(), (float) (nameArea.getY() + nameArea.getHeight() - 3),
-                juce::jmin ((float) nameArea.getWidth(), 300.0f), 1.0f);
+                340.0f, 1.2f);
 
-    drawTrackedText (g, blurb, { (int) inner.getX(), (int) inner.getY() + 40,
-                                 (int) inner.getWidth() - 84, 11 },
-                     colour::amberDim.brighter (0.88f), juce::Justification::centredLeft,
-                     font (8.5f), 0.1f);
+    drawTrackedText (g, blurb, { (int) inner.getX(), (int) inner.getY() + 51,
+                                 (int) inner.getWidth() - 90, 12 },
+                     colour::textDim.withAlpha (0.82f), juce::Justification::centredLeft,
+                     font (9.2f), 0.1f);
 
     if (processor.isPresetEdited())
     {
         g.setColour (colour::amber);
-        g.fillEllipse (inner.getRight() - 8.0f, inner.getBottom() - 10.0f, 4.0f, 4.0f);
-        drawGlow (g, { inner.getRight() - 6.0f, inner.getBottom() - 8.0f }, 9.0f, colour::amber, 0.4f);
-        drawTrackedText (g, "EDIT", { (int) inner.getRight() - 40, (int) inner.getBottom() - 14, 28, 7 },
-                         colour::amber, juce::Justification::centredRight, monoFont (5.2f, true), 0.2f);
+        g.fillEllipse (inner.getRight() - 9.0f, inner.getBottom() - 19.0f, 4.4f, 4.4f);
+        drawGlow (g, { inner.getRight() - 6.5f, inner.getBottom() - 17.0f }, 11.0f, colour::amber, 0.55f);
+        drawTrackedText (g, "EDIT", { (int) inner.getRight() - 44, (int) inner.getBottom() - 24, 30, 8 },
+                         colour::amber, juce::Justification::centredRight, monoFont (5.9f, true), 0.2f);
     }
 
-    drawTrackedText (g, "BROWSE LIBRARY", { (int) inner.getX(), (int) inner.getBottom() - 13, 108, 8 },
-                     colour::amberDim.brighter (1.0f), juce::Justification::centredLeft,
-                     monoFont (5.6f, true), 0.4f);
+    drawTrackedText (g, "BROWSE LIBRARY  /  CLICK THE GLASS",
+                     { (int) inner.getX(), (int) inner.getBottom() - 14, 240, 9 },
+                     colour::amberDim.brighter (1.12f), juce::Justification::centredLeft,
+                     monoFont (6.6f, true), 0.4f);
 
     juce::Path chevron;
     chevron.startNewSubPath (glass.getRight() - 19.0f, glass.getBottom() - 12.0f);
@@ -227,15 +233,29 @@ void PresetDisplay::paint (juce::Graphics& g)
                                     : juce::String ("SPLIT");
 
     drawTrackedText (g, "MODE " + modeText + "  ·  CH I" + (mode == 0 ? "" : " + II"),
-                     { (int) inner.getRight() - 226, (int) inner.getBottom() - 13, 216, 8 },
-                     colour::amberDim.withAlpha (0.86f), juce::Justification::centredRight,
-                     monoFont (5.3f), 0.2f);
+                     { (int) inner.getRight() - 234, (int) inner.getBottom() - 14, 224, 9 },
+                     colour::amberDim.brighter (0.55f), juce::Justification::centredRight,
+                     monoFont (6.2f), 0.2f);
 
-    const auto lampY = inner.getBottom() - 15.0f;
-    drawLed (g, { inner.getRight() - 248.0f, lampY, 4.0f, 4.0f }, true, colour::amber, 0.55f);
+    const auto lampY = inner.getBottom() - 16.0f;
+    drawLed (g, { inner.getRight() - 256.0f, lampY, 4.4f, 4.4f }, true, colour::amber, 0.62f);
 
     if (mode != 0)
-        drawLed (g, { inner.getRight() - 240.0f, lampY, 4.0f, 4.0f }, true, colour::aurora, 0.55f);
+        drawLed (g, { inner.getRight() - 248.0f, lampY, 4.4f, 4.4f }, true, colour::aurora, 0.62f);
+
+    // A ghosted patch number and bank stamp fill the right end of the glass.
+    {
+        g.setFont (monoFont (34.0f, true));
+        g.setColour (colour::amber.withAlpha (0.10f));
+        g.drawText (juce::String (index + 1).paddedLeft ('0', 2),
+                    inner.toNearestInt().removeFromRight (86).translated (0, 2),
+                    juce::Justification::centredRight, false);
+
+        drawTrackedText (g, "BANK A  /  ROM 01",
+                         { (int) inner.getRight() - 118, (int) inner.getY() + 22, 112, 9 },
+                         colour::amberDim.withAlpha (0.90f), juce::Justification::centredRight,
+                         monoFont (5.9f), 0.25f);
+    }
 
     // Corner screws.
     for (juce::Point<float> screw : { juce::Point<float> (8.0f, 8.0f),
@@ -332,27 +352,43 @@ void PresetBrowser::paint (juce::Graphics& g)
 {
     const auto full = getLocalBounds().toFloat();
 
-    g.setColour (juce::Colours::black.withAlpha (0.76f));
+    g.setColour (juce::Colours::black.withAlpha (0.84f));
     g.fillRect (full);
 
     const auto panel = browserPanelBounds (full);
 
     // A cool backlight behind the panel, like a lit display in a dark room.
-    drawGlow (g, panel.getCentre(), panel.getWidth() * 0.62f, colour::aurora, 0.10f);
-    drawGlow (g, { panel.getCentreX(), panel.getY() + 40.0f },
-              panel.getWidth() * 0.46f, colour::amber, 0.10f);
+    drawGlow (g, panel.getCentre(), panel.getWidth() * 0.62f, colour::aurora, 0.09f);
+    drawGlow (g, { panel.getCentreX(), panel.getY() + 30.0f },
+              panel.getWidth() * 0.46f, colour::amber, 0.07f);
 
     g.setColour (juce::Colours::black.withAlpha (0.68f));
     g.fillRoundedRectangle (panel.translated (0.0f, 10.0f), 9.0f);
 
     drawPlate (g, panel, 9.0f);
 
+    // Deepen the face just enough that row type sits on a dark lacquer
+    // rather than a pale wash.
+    g.setColour (juce::Colour (0xff0a0806).withAlpha (0.62f));
+    g.fillRoundedRectangle (panel.reduced (1.6f), 8.2f);
+
+    // Faint engraved grid behind the patch columns.
+    g.setColour (colour::brass.withAlpha (0.055f));
+    for (float y = panel.getY() + rowsStart; y < panel.getBottom() - footerHeight; y += rowHeight + rowGap)
+        g.drawLine (panel.getX() + 28.0f, y, panel.getRight() - 28.0f, y, 0.6f);
+
     // Header wash.
-    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.13f),
+    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.10f),
                                              panel.getCentreX(), panel.getY(),
                                              juce::Colours::transparentBlack,
                                              panel.getCentreX(), panel.getY() + 100.0f, false));
     g.fillRoundedRectangle (panel.withHeight (100.0f).reduced (1.0f), 9.0f);
+
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff2d59d).withAlpha (0.40f),
+                                             panel.getX(), panel.getY(),
+                                             juce::Colour (0xff6b4a24).withAlpha (0.10f),
+                                             panel.getRight(), panel.getBottom(), false));
+    g.drawRoundedRectangle (panel.reduced (1.0f), 9.0f, 1.2f);
 
     drawTrackedText (g, "SOUND LIBRARY",
                      { (int) panel.getX() + 30, (int) panel.getY() + 18, 560, 30 },
@@ -361,9 +397,9 @@ void PresetBrowser::paint (juce::Graphics& g)
 
     drawTrackedText (g, "FACTORY BANK A   /   " + juce::String (presetCount())
                             + " PATCHES   /   CLICK TO AUDITION",
-                     { (int) panel.getX() + 31, (int) panel.getY() + 49, 780, 12 },
-                     colour::textDim.brighter (0.06f), juce::Justification::centredLeft,
-                     monoFont (7.4f), 0.4f);
+                     { (int) panel.getX() + 31, (int) panel.getY() + 50, 780, 12 },
+                     colour::textDim.brighter (0.10f), juce::Justification::centredLeft,
+                     monoFont (8.0f), 0.4f);
 
     // Bank plaque.
     const juce::Rectangle<float> plaque (panel.getRight() - 190.0f, panel.getY() + 20.0f, 118.0f, 36.0f);
@@ -401,11 +437,11 @@ void PresetBrowser::paint (juce::Graphics& g)
         const bool active = filter == "ALL" ? filterCategory.isEmpty() : filter == filterCategory;
         const auto tint = filter == "ALL" ? colour::amber : categoryColour (filter);
 
-        g.setGradientFill (juce::ColourGradient (active ? tint.withAlpha (0.22f)
-                                                        : juce::Colour (0xff101820),
+        g.setGradientFill (juce::ColourGradient (active ? tint.withAlpha (0.34f)
+                                                        : juce::Colour (0xff16110c),
                                                  chip.getCentreX(), chip.getY(),
-                                                 active ? tint.withAlpha (0.08f)
-                                                        : juce::Colour (0xff04070a),
+                                                 active ? tint.withAlpha (0.12f)
+                                                        : juce::Colour (0xff050403),
                                                  chip.getCentreX(), chip.getBottom(), false));
         g.fillRoundedRectangle (chip, 3.0f);
 
@@ -416,8 +452,8 @@ void PresetBrowser::paint (juce::Graphics& g)
             drawGlow (g, chip.getCentre(), chip.getWidth() * 0.55f, tint, 0.18f);
 
         drawTrackedText (g, chipLabel (filter), chip.toNearestInt().reduced (2),
-                         active ? tint.brighter (0.25f) : colour::textDim,
-                         juce::Justification::centred, trackedFont (6.4f, 1.1f, true), 0.2f);
+                         active ? tint.brighter (0.32f) : colour::textDim,
+                         juce::Justification::centred, trackedFont (7.0f, 1.1f, true), 0.2f);
     }
 
     g.setColour (juce::Colours::black.withAlpha (0.66f));
@@ -454,21 +490,26 @@ void PresetBrowser::paint (juce::Graphics& g)
         if (selected)
         {
             const auto tint = categoryColour (preset.category);
-            g.setGradientFill (juce::ColourGradient (tint.withAlpha (0.16f),
+            g.setGradientFill (juce::ColourGradient (tint.withAlpha (0.28f),
                                                      row.getX(), row.getY(),
-                                                     tint.withAlpha (0.035f),
+                                                     tint.withAlpha (0.055f),
                                                      row.getRight(), row.getBottom(), false));
             g.fillRoundedRectangle (row, 4.0f);
-            g.setColour (tint.withAlpha (0.72f));
-            g.drawRoundedRectangle (row.reduced (0.5f), 4.0f, 1.0f);
-            drawGlow (g, { row.getX() + 3.0f, row.getCentreY() }, 24.0f, tint, 0.22f);
+            g.setColour (tint.withAlpha (0.92f));
+            g.drawRoundedRectangle (row.reduced (0.5f), 4.0f, 1.1f);
+            drawGlow (g, { row.getX() + 3.0f, row.getCentreY() }, 30.0f, tint, 0.36f);
         }
         else if (hovered)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.045f));
+            g.setColour (juce::Colours::white.withAlpha (0.075f));
             g.fillRoundedRectangle (row, 4.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.10f));
+            g.setColour (juce::Colours::white.withAlpha (0.16f));
             g.drawRoundedRectangle (row.reduced (0.5f), 4.0f, 0.8f);
+        }
+        else
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.012f));
+            g.fillRoundedRectangle (row, 4.0f);
         }
 
         if (selected || hovered)
@@ -483,16 +524,16 @@ void PresetBrowser::paint (juce::Graphics& g)
                          selected ? colour::amberHot : colour::textFaint,
                          juce::Justification::centredLeft, monoFont (9.0f, true), 0.2f);
 
-        g.setFont (trackedFont (13.4f, 0.9f, true));
-        g.setColour (selected ? colour::amberHot : (hovered ? colour::cream : colour::text));
-        g.drawText (preset.name, row.withTrimmedLeft (46.0f).withTrimmedRight (78.0f).withHeight (29.0f),
+        g.setFont (trackedFont (14.2f, 0.9f, true));
+        g.setColour (selected ? colour::amberHot : (hovered ? colour::cream : colour::cream.withAlpha (0.92f)));
+        g.drawText (preset.name, row.withTrimmedLeft (46.0f).withTrimmedRight (78.0f).withHeight (30.0f),
                     juce::Justification::centredLeft, true);
 
         drawTrackedText (g, preset.blurb,
-                         { (int) row.getX() + 47, (int) row.getY() + 29,
-                           (int) row.getWidth() - 116, 12 },
-                         selected ? colour::textDim : colour::textFaint.brighter (0.12f),
-                         juce::Justification::centredLeft, font (8.3f), 0.05f);
+                         { (int) row.getX() + 47, (int) row.getY() + 30,
+                           (int) row.getWidth() - 116, 13 },
+                         selected ? colour::textDim : colour::textDim.withAlpha (0.78f),
+                         juce::Justification::centredLeft, font (8.8f), 0.05f);
 
         const auto badgeColour = categoryColour (preset.category);
         juce::Rectangle<float> badge (row.getRight() - 66.0f, row.getCentreY() - 7.0f, 55.0f, 14.0f);
@@ -523,9 +564,9 @@ void PresetBrowser::paint (juce::Graphics& g)
                 panel.getRight() - 24.0f, panel.getBottom() - footerHeight + 1.0f, 0.8f);
 
     drawTrackedText (g, "CLICK A PATCH TO AUDITION   /   FILTER BY CATEGORY   /   ESC TO CLOSE",
-                     { (int) panel.getX() + 30, (int) panel.getBottom() - 33, 820, 14 },
-                     colour::textDim.brighter (0.06f), juce::Justification::centredLeft,
-                     monoFont (7.4f), 0.3f);
+                     { (int) panel.getX() + 30, (int) panel.getBottom() - 34, 840, 14 },
+                     colour::textDim.brighter (0.10f), juce::Justification::centredLeft,
+                     monoFont (8.0f), 0.3f);
 
     drawTrackedText (g, "FREEBUFF AUDIO  ·  MODEL CS-80E  ·  SERIES 5",
                      { (int) panel.getRight() - 400, (int) panel.getBottom() - 33, 370, 14 },

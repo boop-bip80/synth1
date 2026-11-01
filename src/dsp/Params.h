@@ -13,6 +13,7 @@ namespace pid
 inline constexpr const char* master     = "master";
 inline constexpr const char* brilliance = "brilliance";
 inline constexpr const char* ensemble   = "ensemble";
+inline constexpr const char* ensembleMode = "ensembleMode";
 inline constexpr const char* space      = "space";
 
 inline constexpr const char* ring       = "ring";
@@ -165,6 +166,9 @@ struct Params
     float masterDb = -4.0f;
     float brilliance = 0.0f;
     float ensemble = 0.38f;
+    /** 0 = Chorus I, 1 = Chorus II, 2 = Tremolo. The CS-80's single
+        chorus/tremolo switch, exposed as a discrete control. */
+    float ensembleMode = 1.0f;
     float space = 0.16f;
 
     float ring = 0.05f;

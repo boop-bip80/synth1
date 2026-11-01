@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/boop-bip80/synth1?label=latest&color=ff9d3c)](https://github.com/boop-bip80/synth1/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-5%2C176-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-5%2C229-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E dual-channel panel">
@@ -19,29 +19,28 @@ a dedicated ring carrier, a resonant high-pass into a resonant low-pass, the
 CS-80's two-level filter envelope, polyphonic aftertouch, polyphonic portamento
 and a spring-loaded pitch ribbon.
 
-Version 5.1 is a DSP validation and reliability release, not a cosmetic one.
-The PolyBLEP oscillators were replaced with quarter-octave band-limited
-wavetable mip maps; measured worst-case aliasing dropped from −38 dB to −66 dB
-at 48 kHz, and a high saw improved from −38 dB to −79 dB. The plugin now
-reports its real 8-sample processing latency instead of zero. Chorus and reverb
-no longer freeze their delay lines and replay stale audio when the mix returns,
-and the audio callback performs no heap allocation. Eight voices with both
-channels and both effects measure 14.2 % of one core at 48 kHz / 256 frames
-(0.142× real time) on the documented reference machine. Every claim in this
-README has a committed measurement or test behind it; see
-[docs/DSP_VALIDATION.md](docs/DSP_VALIDATION.md) and
-[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+Version 5.2 is the performance-console release. The panel is rebuilt around a
+warm lacquer finish: figured walnut cheeks, brass rails, a chrome badge, ten
+colour-coded voice cards with calibration rails and slot screws, illuminated
+ivory sliders, brushed-metal knobs with jewel arcs, warm amber glass and a
+dual-trace phosphor scope. The CS-80's chorus/tremolo switch now has its three
+authentic positions — Chorus I, Chorus II and Tremolo — and the factory bank
+uses them. No bitmap skin, no external editor dependency.
 
-The entire panel was repainted in code again — black lacquer and cold steel,
-figured walnut cheeks, brass rails, ten jewel-toned sections, a chrome badge,
-warm amber glass, a dual-trace phosphor scope and a bronze ribbon controller.
-No bitmap skin, no external editor dependency.
+The engine remains the validated 5.1 signal path: quarter-octave band-limited
+wavetable mip maps, measured worst-case aliasing at −66 dB (48 kHz), true
+8-sample latency reporting, effects that cannot replay stale audio, and zero
+heap allocations in the audio callback. Eight voices with both channels and
+both effects measure 15.0 % of one core at 48 kHz / 256 frames (0.150× real
+time) on the documented reference machine. The 5.2 suite is **5,229 checks**,
+all passing; see [docs/DSP_VALIDATION.md](docs/DSP_VALIDATION.md) and
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ---
 
 ## Download the builds
 
-**Current version: 5.1.0.** The links below resolve to the rolling `latest`
+**Current version: 5.2.0.** The links below resolve to the rolling `latest`
 release, which CI refreshes from `main` only after every gated job passes. A
 versioned `v5.1.0` release requires pushing the tag; that publication step is
 documented in [docs/QUALITY_REMEDIATION.md](docs/QUALITY_REMEDIATION.md) and is
@@ -110,7 +109,21 @@ latest release.
 Brass chords and aftertouch swells, rendered offline through the real processor
 by the screenshot tool.
 
-## What is new in 5.1
+## What is new in 5.2
+
+- **The CS-80 chorus/tremolo switch, in full.** Chorus I is a slower, narrower
+  three-tap BBD setting; Chorus II keeps the wide five-tap halo; Tremolo is a
+  4.6 Hz stereo amplitude sweep whose depth follows the Ensemble control. The
+  two chorus settings use genuinely different delay, rate and gain sets, and
+  the tremolo stage is 90° out of phase between channels.
+- **A complete performance-console repaint.** Warm lacquered metal, walnut
+  cheeks, brass rails and screws, ten saturated voice cards, a chrome badge,
+  engraved ivory fader caps, brushed knobs with jewel-value arcs, a warmer
+  preset LCD, a darker sound library and a reworked bronze ribbon and keybed.
+- **Regression tests for the new modes.** The suite grew from 5,176 to 5,229
+  checks, including the two chorus tap sets and the tremolo envelope.
+
+### 5.1 engine foundations
 
 - **Band-limited wavetable oscillators.** Quarter-octave mip maps are built
   additively at prepare time with every harmonic below 45 % of the host rate.
@@ -177,10 +190,11 @@ by the screenshot tool.
   filter and tremolo.
 - **Expression:** channel and polyphonic aftertouch, mod wheel, pitch bend, a
   spring-loaded ribbon (±12 semitones) and a 61-key poly-touch keybed.
-- **Five-tap BBD ensemble** with cubic delay reads, a stereo-pre-delayed plate
-  reverb, a brilliance tilt and a fixed output transformer. Both effects have
-  per-sample wet/dry smoothing, real tails and a clean cold-start, so automating
-  them cannot replay stale audio.
+- **Three-position CS-80 ensemble** — Chorus I (three slow taps), Chorus II
+  (five wide taps) and stereo Tremolo — with cubic delay reads, a
+  stereo-pre-delayed plate reverb, a brilliance tilt and a fixed output
+  transformer. Both effects have per-sample wet/dry smoothing, real tails and a
+  clean cold-start, so automating them cannot replay stale audio.
 - **36 factory patches**, a category-filtered four-column preset library,
   tooltips and double-click parameter reset. The preset baseline is stored with
   the project state, so a tweaked factory patch still reads as edited after the
@@ -201,7 +215,7 @@ by the screenshot tool.
 | **CHANNEL II** | Layer level, detune, octave, pan, cutoff, resonance, pulse width, envelope scale, mode and split point. |
 | **LFO** | Speed, waveform, fade-in delay, and four modulation depths. |
 | **PERFORMANCE** | Aftertouch, bend range, stereo spread, initial-bend twang, velocity, glide and vintage. |
-| **OUTPUT** | Master, tune, brilliance, ensemble and space, with a stereo meter. |
+| **OUTPUT** | Master, tune, brilliance, Chorus I/II/Tremolo, ensemble depth and space, with a stereo meter. |
 | **RIBBON** | Drag left/right for pitch; release to spring back. |
 | **KEYBED** | 61 keys, velocity from the vertical touch point, poly pressure from a held drag. |
 | **LCD / LIBRARY** | Previous/next patch arrows; click the glass for the 36-patch library. |
@@ -270,7 +284,7 @@ src/dsp/            Pure C++17 engine — no JUCE, fully unit-testable
                       ensemble, stereo-pre-delay plate, transparent limiter
   Presets.*           36 factory patches
   Oscillator.h        band-limited wavetable mip maps + oscillators
-  tests/              5,176 headless assertions, FFT alias analysis
+  tests/              5,229 headless assertions, FFT alias analysis
 
 src/plugin/         JUCE wrapper
   PluginProcessor.*   APVTS, presets, MIDI dispatch, state persistence
@@ -304,6 +318,7 @@ The headless suite covers:
 - direct SVF gain at cutoff, resonance peak, and stability at 44.1–192 kHz, Q 40;
 - envelope attack/decay/release timing measured in samples;
 - chorus/reverb re-enable after silence (no stale burst) and smooth live toggles;
+- distinct Chorus I and Chorus II tap sets plus a measured tremolo envelope;
 - zero heap allocations across 400 callbacks with MIDI and parameter changes;
 - dual-channel layering, keyboard splits, layer panning and the ring carrier;
 - sub-oscillator tracking, polyphonic glide, master tune and vintage spread;

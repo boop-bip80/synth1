@@ -180,9 +180,9 @@ void drawPlate (juce::Graphics& g, juce::Rectangle<float> area, float cornerSize
 
     juce::ColourGradient face (colour::plateTop, area.getCentreX(), area.getY() - 30.0f,
                                colour::plateBottom, area.getCentreX(), area.getBottom(), false);
-    face.addColour (0.26, colour::plateMid.brighter (0.10f));
+    face.addColour (0.26, colour::plateMid.brighter (0.20f));
     face.addColour (0.62, colour::plateMid);
-    face.addColour (0.86, juce::Colour (0xff071016));
+    face.addColour (0.86, juce::Colour (0xff0d0805));
     g.setGradientFill (face);
     g.fillPath (path);
 
@@ -449,14 +449,14 @@ void drawBrushedPanel (juce::Graphics& g, juce::Rectangle<int> area)
 {
     const auto bounds = area.toFloat();
 
-    juce::ColourGradient face (juce::Colour (0xff334553),
+    juce::ColourGradient face (juce::Colour (0xff584a38),
                                bounds.getCentreX(), bounds.getY() - 110.0f,
                                colour::panelBottom,
                                bounds.getCentreX(), bounds.getBottom(), false);
-    face.addColour (0.22, juce::Colour (0xff1b2a35));
-    face.addColour (0.48, colour::panelMid);
-    face.addColour (0.72, juce::Colour (0xff0a1319));
-    face.addColour (0.92, juce::Colour (0xff04090d));
+    face.addColour (0.20, juce::Colour (0xff2d2419));
+    face.addColour (0.46, colour::panelMid);
+    face.addColour (0.72, juce::Colour (0xff120d08));
+    face.addColour (0.92, juce::Colour (0xff060403));
     g.setGradientFill (face);
     g.fillRect (bounds);
 
@@ -496,19 +496,19 @@ void drawBrushedPanel (juce::Graphics& g, juce::Rectangle<int> area)
     }
 
     // Warm key light above, teal bounce below.
-    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.070f),
+    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.125f),
                                              bounds.getCentreX(), bounds.getY(),
                                              juce::Colours::transparentBlack,
-                                             bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.55f, false));
+                                             bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.58f, false));
     g.fillRect (bounds);
 
     g.setGradientFill (juce::ColourGradient (juce::Colours::transparentBlack,
-                                             bounds.getCentreX(), bounds.getBottom() - 190.0f,
-                                             colour::aurora.withAlpha (0.038f),
+                                             bounds.getCentreX(), bounds.getBottom() - 210.0f,
+                                             colour::aurora.withAlpha (0.055f),
                                              bounds.getCentreX(), bounds.getBottom(), false));
     g.fillRect (bounds);
 
-    drawAurora (g, bounds, colour::amber, colour::aurora, 0.52f);
+    drawAurora (g, bounds, colour::amber, colour::aurora, 0.74f);
 
     // Edge vignettes.
     g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.52f),

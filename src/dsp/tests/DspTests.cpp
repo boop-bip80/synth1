@@ -692,6 +692,80 @@ void testStereoAndChorus()
     CHECK (difference > energy * 0.01);
 }
 
+void testEnsembleModes()
+{
+    std::printf ("- ensemble modes: chorus I, chorus II, stereo tremolo\n");
+
+    auto renderMode = [] (int mode, float amount) -> StereoBuffer
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = defaultParams();
+        p.ensembleMode = (float) mode;
+        p.ensemble = amount;
+        p.space = 0.0f;
+        p.spread = 0.0f;
+        p.aA = 0.005f;
+        p.aD = 4.0f;
+        p.aS = 1.0f;
+        engine.setParams (p);
+        engine.noteOn (48, 0.9f);
+        engine.noteOn (55, 0.9f);
+        engine.noteOn (64, 0.9f);
+        return render (engine, 72000);
+    };
+
+    const auto one = renderMode (0, 0.85f);
+    const auto two = renderMode (1, 0.85f);
+    const auto tremolo = renderMode (2, 0.85f);
+
+    CHECK (allFinite (one) && allFinite (two) && allFinite (tremolo));
+
+    // The two chorus positions must be genuinely different tap sets, not just
+    // the same effect under a different label.
+    double difference = 0.0, energy = 0.0;
+    for (size_t i = 0; i < one.left.size(); ++i)
+    {
+        const double d = (double) one.left[i] - two.left[i];
+        difference += d * d;
+        energy += (double) one.left[i] * one.left[i];
+    }
+
+    CHECK (difference > energy * 0.005);
+
+    // Tremolo must show clear periodic amplitude movement once the envelope
+    // has settled. A 50 ms window is short against the 4.6 Hz sweep.
+    std::vector<float> windows;
+    constexpr int window = 2400;
+
+    for (int start = 24000; start + window <= (int) tremolo.left.size(); start += window)
+    {
+        double sum = 0.0;
+
+        for (int i = 0; i < window; ++i)
+        {
+            const double s = (double) tremolo.left[(size_t) (start + i)];
+            sum += s * s;
+        }
+
+        windows.push_back ((float) std::sqrt (sum / (double) window));
+    }
+
+    CHECK (windows.size() > 8);
+
+    float low = 1.0f, high = 0.0f;
+
+    for (float value : windows)
+    {
+        low = std::min (low, value);
+        high = std::max (high, value);
+    }
+
+    CHECK (low > 0.0f);
+    CHECK (high > low * 1.35f);
+}
+
 void testReverbTail()
 {
     std::printf ("- reverb tail decays\n");
@@ -1965,6 +2039,7 @@ int main()
     testKeyboardSplit();
     testRingModulator();
     testStereoAndChorus();
+    testEnsembleModes();
     testReverbTail();
     testSustainPedal();
     testDeterminism();

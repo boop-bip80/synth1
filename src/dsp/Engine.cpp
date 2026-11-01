@@ -173,7 +173,7 @@ public:
         cold = true;
     }
 
-    void process (float* left, float* right, int numSamples, float amount)
+    void process (float* left, float* right, int numSamples, float amount, int mode)
     {
         const float target = clampf (amount, 0.0f, 1.0f);
 
@@ -188,13 +188,28 @@ public:
 
         cold = false;
 
-        // Five BBD taps, each with its own rate, depth and stereo phase. The
-        // wider spacing and the extra tap turn the ensemble from a gentle
-        // shimmer into the big, softly drifting CS-80 halo.
-        const float baseDelay[5] = { 0.0073f, 0.0119f, 0.0173f, 0.0247f, 0.0331f };
-        const float depth[5] = { 0.0019f, 0.0027f, 0.0034f, 0.0042f, 0.0049f };
-        const float rate[5] = { 0.19f, 0.23f, 0.13f, 0.097f, 0.071f };
-        const float tapGain[5] = { 0.46f, 0.30f, 0.22f, 0.16f, 0.11f };
+        // The CS-80 has two chorus positions plus tremolo. Chorus I is the
+        // gentle, slow, three-tap setting; Chorus II is the wide five-tap halo
+        // this instrument is known for. The tap layout is chosen once per
+        // block, so neither setting costs anything the other does not.
+        const bool chorusOne = mode == 0;
+        const int tapCount = chorusOne ? 3 : 5;
+        const float baseDelay[5] = { chorusOne ? 0.0061f : 0.0073f,
+                                     chorusOne ? 0.0104f : 0.0119f,
+                                     chorusOne ? 0.0161f : 0.0173f,
+                                     0.0247f, 0.0331f };
+        const float depth[5] = { chorusOne ? 0.0025f : 0.0019f,
+                                 chorusOne ? 0.0036f : 0.0027f,
+                                 chorusOne ? 0.0046f : 0.0034f,
+                                 0.0042f, 0.0049f };
+        const float rate[5] = { chorusOne ? 0.105f : 0.19f,
+                                chorusOne ? 0.079f : 0.23f,
+                                chorusOne ? 0.058f : 0.13f,
+                                0.097f, 0.071f };
+        const float tapGain[5] = { chorusOne ? 0.52f : 0.46f,
+                                   chorusOne ? 0.34f : 0.30f,
+                                   chorusOne ? 0.20f : 0.22f,
+                                   0.16f, 0.11f };
 
         const float slowIncrement = 0.083f / (float) sampleRate;
         float blockPeak = 0.0f;
@@ -216,7 +231,7 @@ public:
 
             float wetL = 0.0f, wetR = 0.0f;
 
-            for (int tap = 0; tap < 5; ++tap)
+            for (int tap = 0; tap < tapCount; ++tap)
             {
                 float phaseR = phases[(size_t) tap] + 0.43f;
                 if (phaseR >= 1.0f)
@@ -259,7 +274,7 @@ public:
             toneR = flushDenormal (toneR + (wetR - toneR) * toneCoeff);
 
             const float dryGain = 1.0f - 0.28f * smoothedAmount;
-            const float wetGain = 0.67f * smoothedAmount;
+            const float wetGain = (chorusOne ? 0.60f : 0.67f) * smoothedAmount;
 
             left[i] = inL * dryGain + toneL * wetGain;
             right[i] = inR * dryGain + toneR * wetGain;
@@ -1370,6 +1385,7 @@ struct Engine::Impl
     bool hasRendered = false;
     float brillianceLpL = 0.0f, brillianceLpR = 0.0f;
     float analogLowL = 0.0f, analogLowR = 0.0f;
+    float tremoloPhase = 0.0f;
     float dcX1L = 0.0f, dcY1L = 0.0f, dcX1R = 0.0f, dcY1R = 0.0f;
 
     std::array<float, kMixBlock> mixL {}, mixR {};
@@ -1402,6 +1418,7 @@ struct Engine::Impl
         ribbonSmoothed = ribbonTarget;
         lfoPhase = 0.0f;
         lfoElapsed = 0.0f;
+        tremoloPhase = 0.0f;
         gainSmoothed = dbToGain (params.masterDb) * kOutputTrim;
         limiterGain = 1.0f;
         hasRendered = false;
@@ -1591,7 +1608,14 @@ struct Engine::Impl
         while (lfoPhase >= 1.0f)
             lfoPhase -= 1.0f;
 
-        chorus.process (mixL.data(), mixR.data(), numSamples, params.ensemble);
+        const int ensembleMode = (int) std::lround (params.ensembleMode);
+        const bool tremoloMode = ensembleMode == 2;
+
+        // In tremolo mode the chorus fades to fully dry (the existing per-
+        // sample smoothing removes any switch click) and a slow stereo
+        // amplitude sweep takes over at the output stage.
+        chorus.process (mixL.data(), mixR.data(), numSamples,
+                        tremoloMode ? 0.0f : params.ensemble, ensembleMode);
         reverb.process (mixL.data(), mixR.data(), numSamples, params.space);
 
         // A little fixed headroom trim keeps eight voices + ensemble from
@@ -1615,6 +1639,23 @@ struct Engine::Impl
         {
             float l = mixL[(size_t) i];
             float r = mixR[(size_t) i];
+
+            if (tremoloMode)
+            {
+                // Stereo tremolo, 90 degrees apart, at the CS-80's fixed
+                // slow rate. The depth follows the Ensemble control.
+                const float depth = clampf (params.ensemble, 0.0f, 1.0f) * 0.62f;
+                float phaseR = tremoloPhase + 0.25f;
+                if (phaseR >= 1.0f)
+                    phaseR -= 1.0f;
+
+                l *= 1.0f - depth * (0.5f + 0.5f * wavetables.readSine (tremoloPhase));
+                r *= 1.0f - depth * (0.5f + 0.5f * wavetables.readSine (phaseR));
+
+                tremoloPhase += 4.6f / (float) sampleRate;
+                if (tremoloPhase >= 1.0f)
+                    tremoloPhase -= 1.0f;
+            }
 
             brillianceLpL += (l - brillianceLpL) * tiltCoeff;
             brillianceLpR += (r - brillianceLpR) * tiltCoeff;

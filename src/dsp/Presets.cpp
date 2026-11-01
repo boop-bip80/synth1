@@ -169,7 +169,8 @@ const std::vector<Preset>& factoryPresets()
             { pid::lpfCutoff, 2600.0f }, { pid::lpfRes, 0.26f }, { pid::aA, 0.80f },
             { pid::aD, 2.80f }, { pid::aS, 0.92f }, { pid::aR, 3.80f }, { pid::fA, 1.40f },
             { pid::fD, 3.00f }, { pid::fS, 0.62f }, { pid::fR, 3.40f }, { pid::ensemble, 0.88f },
-            { pid::space, 0.48f }, { pid::spread, 0.88f }, { pid::vco1Sub, 0.14f },
+            { pid::ensembleMode, 0.0f }, { pid::space, 0.48f }, { pid::spread, 0.88f },
+            { pid::vco1Sub, 0.14f },
             { pid::vintage, 0.56f }, { pid::filterTrack, 0.50f }, { pid::master, -9.0f },
         } },
 
@@ -178,8 +179,9 @@ const std::vector<Preset>& factoryPresets()
             { pid::vco2Level, 0.60f }, { pid::vco2Pw, 0.50f }, { pid::vco1Sub, 0.36f },
             { pid::sineLevel, 0.26f }, { pid::hpfCutoff, 180.0f }, { pid::lpfCutoff, 7000.0f },
             { pid::fS, 0.82f }, { pid::aA, 0.005f }, { pid::aD, 0.20f }, { pid::aS, 1.0f },
-            { pid::aR, 0.14f }, { pid::ensemble, 0.38f }, { pid::space, 0.15f },
-            { pid::spread, 0.35f }, { pid::drive, 0.30f }, { pid::vintage, 0.24f },
+            { pid::aR, 0.14f }, { pid::ensemble, 0.38f }, { pid::ensembleMode, 2.0f },
+            { pid::space, 0.15f }, { pid::spread, 0.35f }, { pid::drive, 0.30f },
+            { pid::vintage, 0.24f },
             { pid::master, -7.0f }, { pid::filterTrack, 0.24f },
         } },
 

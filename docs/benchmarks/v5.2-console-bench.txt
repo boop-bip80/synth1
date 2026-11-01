@@ -1,0 +1,28 @@
+CS-80E CPU benchmark
+====================
+Reference machine: 8 hardware threads, single process, Release build.
+
+| Scenario | SR | Block | Avg us | p95 us | Worst us | x realtime | CPU % | Allocs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| idle | 48000 | 256 | 4.8 | 4.8 | 22.6 | 1099.23x | 0.09 | 0 |
+| 1 voice | 48000 | 256 | 52.0 | 59.9 | 91.9 | 102.48x | 0.98 | 0 |
+| 4 voices | 48000 | 256 | 198.0 | 257.7 | 308.7 | 26.92x | 3.71 | 0 |
+| 8 voices | 48000 | 256 | 384.8 | 501.3 | 580.8 | 13.86x | 7.22 | 0 |
+| 8 voices, dual + chorus + reverb | 48000 | 256 | 799.3 | 849.2 | 1095.3 | 6.67x | 14.99 | 0 |
+| 8 voices, heavy modulation | 48000 | 256 | 801.6 | 859.4 | 1086.3 | 6.65x | 15.03 | 0 |
+| 8 voices, high resonance + drive | 48000 | 256 | 377.9 | 471.4 | 544.4 | 14.11x | 7.09 | 0 |
+
+Buffer-size sweep (8 voices, dual + effects, 48 kHz)
+| Scenario | SR | Block | Avg us | p95 us | Worst us | x realtime | CPU % | Allocs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 voices, dual + chorus + reverb | 48000 | 64 | 202.8 | 248.7 | 310.7 | 6.57x | 15.22 | 0 |
+| 8 voices, dual + chorus + reverb | 48000 | 128 | 397.7 | 416.8 | 751.9 | 6.70x | 14.92 | 0 |
+| 8 voices, dual + chorus + reverb | 48000 | 256 | 794.7 | 833.7 | 1058.1 | 6.71x | 14.90 | 0 |
+| 8 voices, dual + chorus + reverb | 48000 | 512 | 1588.4 | 1645.5 | 2126.1 | 6.71x | 14.90 | 0 |
+
+Sample-rate sweep (8 voices, dual + effects, 256 frames)
+| Scenario | SR | Block | Avg us | p95 us | Worst us | x realtime | CPU % | Allocs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 8 voices, dual + chorus + reverb | 44100 | 256 | 786.9 | 812.7 | 880.1 | 7.37x | 13.56 | 0 |
+| 8 voices, dual + chorus + reverb | 48000 | 256 | 811.2 | 1051.8 | 1116.3 | 6.57x | 15.21 | 0 |
+| 8 voices, dual + chorus + reverb | 96000 | 256 | 818.1 | 870.7 | 1161.6 | 3.26x | 30.68 | 0 |

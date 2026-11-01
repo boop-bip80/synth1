@@ -1,5 +1,30 @@
 # Changelog
 
+## 5.2.0 — performance console and ensemble modes
+
+### Sound
+
+- The CS-80 chorus/tremolo switch now has its three authentic positions.
+  Chorus I uses three slower BBD taps with a narrower image; Chorus II keeps the
+  wide five-tap halo; Tremolo is a 4.6 Hz stereo amplitude sweep with a 90°
+  channel offset. Ensemble depth controls all three.
+- Velvet Strings ships on Chorus I and Prog Organ switches to Tremolo, so the
+  factory bank demonstrates the new settings.
+- Added regression tests for the two chorus tap sets and the tremolo envelope:
+  5,229 checks, all passing.
+
+### Interface
+
+- Rebuilt the panel around a warm lacquer-and-brass finish: walnut cheeks,
+  brass rails, a chrome badge, ten colour-coded cards, calibration rails, slot
+  screws and an engraved ivory slider cap with a back-lit value window.
+- Brushed-metal knobs now carry a jewel-toned value arc, a lit pointer and a
+  subtle halo; the value and legend type is larger throughout.
+- Warmer, deeper preset LCD with a ghosted patch number, a darker sound library
+  with stronger selection contrast, a larger dual-trace scope, and a richer
+  bronze ribbon and keybed.
+- The VCA card no longer clips its subtitle, and the footer reports V5.2.0.
+
 ## Unreleased — modulation matrix and microtuning (engine only)
 
 - Eight-slot modulation matrix in the engine: LFO, velocity, channel and poly

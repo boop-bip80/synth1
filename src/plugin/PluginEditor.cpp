@@ -8,7 +8,7 @@ namespace cs80
 {
 namespace
 {
-constexpr int headerDividerY = 158;
+constexpr int headerDividerY = 156;
 constexpr int mainRowY = 168;
 constexpr int mainRowH = 404;
 constexpr int lowerRowY = 582;
@@ -75,14 +75,14 @@ public:
             ui::drawBrushedPanel (g, face.toNearestInt());
 
             // Warm stage light across the top, cool bounce from below.
-            ui::drawGlow (g, { 250.0f, 64.0f }, 290.0f, ui::colour::amber, 0.16f);
-            ui::drawGlow (g, { 676.0f, 72.0f }, 340.0f, ui::colour::amber, 0.13f);
-            ui::drawGlow (g, { 1070.0f, 66.0f }, 190.0f, ui::colour::aurora, 0.10f);
-            ui::drawGlow (g, { 1300.0f, 300.0f }, 240.0f, ui::colour::aurora, 0.055f);
-            ui::drawGlow (g, { 120.0f, 700.0f }, 260.0f, ui::colour::aurora, 0.045f);
+            ui::drawGlow (g, { 250.0f, 58.0f }, 330.0f, ui::colour::amber, 0.30f);
+            ui::drawGlow (g, { 676.0f, 66.0f }, 380.0f, ui::colour::amber, 0.24f);
+            ui::drawGlow (g, { 1096.0f, 62.0f }, 240.0f, ui::colour::aurora, 0.20f);
+            ui::drawGlow (g, { 1300.0f, 300.0f }, 260.0f, ui::colour::aurora, 0.10f);
+            ui::drawGlow (g, { 120.0f, 700.0f }, 280.0f, ui::colour::aurora, 0.09f);
 
             // A long, low specular sweep across the brushed face.
-            g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.032f),
+            g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.055f),
                                                      face.getX(), face.getY() + 210.0f,
                                                      juce::Colours::transparentWhite,
                                                      face.getRight(), face.getY() + 470.0f, false));
@@ -110,11 +110,11 @@ public:
 
             // Brass rails on the faceplate edges.
             ui::drawBrassRail (g, { face.getX() + 6.0f, face.getY() + 1.0f,
-                                    face.getWidth() - 12.0f, 2.2f }, false, 0.82f);
+                                    face.getWidth() - 12.0f, 2.4f }, false, 0.96f);
             ui::drawBrassRail (g, { face.getX() + 1.0f, face.getY() + 8.0f,
-                                    2.2f, face.getHeight() - 16.0f }, true, 0.62f);
-            ui::drawBrassRail (g, { face.getRight() - 3.2f, face.getY() + 8.0f,
-                                    2.2f, face.getHeight() - 16.0f }, true, 0.62f);
+                                    2.4f, face.getHeight() - 16.0f }, true, 0.78f);
+            ui::drawBrassRail (g, { face.getRight() - 3.4f, face.getY() + 8.0f,
+                                    2.4f, face.getHeight() - 16.0f }, true, 0.78f);
         }
 
         // Bevels and inner hairlines.
@@ -172,46 +172,42 @@ public:
 
         // Header captions.
         ui::drawTrackedText (g, "DUAL TRACE  /  L + R",
-                             { 976, 15, 196, 9 }, ui::colour::textFaint,
-                             juce::Justification::centred, ui::trackedFont (5.8f, 1.4f, true), 0.3f);
+                             { 980, 14, 232, 10 }, ui::colour::textFaint.brighter (0.20f),
+                             juce::Justification::centred, ui::trackedFont (6.5f, 1.4f, true), 0.4f);
 
         ui::drawTrackedText (g, "VOICE CARDS  ·  I / II",
-                             { 1186, 15, 180, 9 }, ui::colour::textFaint,
-                             juce::Justification::centred, ui::trackedFont (5.8f, 1.4f, true), 0.3f);
+                             { 1229, 14, 148, 10 }, ui::colour::textFaint.brighter (0.20f),
+                             juce::Justification::centred, ui::trackedFont (6.2f, 1.4f, true), 0.4f);
 
         // Channel plate names over the two control rows.
         ui::drawTrackedText (g, "CHANNEL I  /  VCO  ·  RING  ·  FILTER  ·  ENVELOPES",
-                             { 62, 159, 700, 8 }, ui::colour::amberDim.brighter (0.72f),
-                             juce::Justification::centredLeft, ui::monoFont (5.4f), 0.25f);
+                             { 62, 157, 700, 9 }, ui::colour::amberDim.brighter (0.92f),
+                             juce::Justification::centredLeft, ui::monoFont (6.4f), 0.25f);
 
         ui::drawTrackedText (g, "CHANNEL II  /  LAYER  ·  SPLIT  ·  MODULATION  ·  OUTPUT",
-                             { 62, 573, 760, 8 }, ui::colour::amberDim.brighter (0.72f),
-                             juce::Justification::centredLeft, ui::monoFont (5.4f), 0.25f);
-
-        // Power jewel and MIDI lamp.
-        ui::drawLed (g, { 1364.0f, 38.0f, 9.0f, 9.0f }, true, ui::colour::amber, 0.98f);
-        ui::drawTrackedText (g, "POWER", { 1340, 50, 44, 8 }, ui::colour::textFaint,
-                             juce::Justification::centred, ui::trackedFont (5.2f, 1.0f, true), 0.2f);
-
-        ui::drawLed (g, { 1365.0f, 72.0f, 7.0f, 7.0f }, true, ui::colour::emerald, 0.70f);
-        ui::drawTrackedText (g, "MIDI", { 1348, 82, 32, 8 }, ui::colour::textFaint,
-                             juce::Justification::centred, ui::trackedFont (5.0f, 0.9f, true), 0.2f);
+                             { 62, 571, 760, 9 }, ui::colour::amberDim.brighter (0.92f),
+                             juce::Justification::centredLeft, ui::monoFont (6.4f), 0.25f);
 
         // Footer engraving.
+        g.setColour (juce::Colour (0xffd9b276).withAlpha (0.34f));
+        g.drawLine (62.0f, 921.0f, 1380.0f, 921.0f, 1.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.drawLine (62.0f, 922.2f, 1380.0f, 922.2f, 0.8f);
+
         ui::drawTrackedText (g, "CS-80E  /  DUAL CHANNEL  /  EIGHT VOICE",
-                             { 62, 926, 420, 12 }, ui::colour::textFaint,
-                             juce::Justification::centredLeft, ui::trackedFont (6.6f, 1.7f, true), 0.4f);
+                             { 62, 926, 440, 13 }, ui::colour::textFaint.brighter (0.10f),
+                             juce::Justification::centredLeft, ui::trackedFont (7.2f, 1.7f, true), 0.4f);
 
         ui::drawTrackedText (g, "CH I + CH II  ·  61 KEY  ·  POLY TOUCH  ·  BRONZE RIBBON",
-                             { 500, 926, 500, 12 }, ui::colour::textFaint.brighter (0.20f),
-                             juce::Justification::centred, ui::monoFont (6.2f), 0.3f);
+                             { 500, 926, 500, 13 }, ui::colour::textFaint.brighter (0.30f),
+                             juce::Justification::centred, ui::monoFont (6.8f), 0.3f);
 
         const double sampleRate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
-        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V5.0.0";
+        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V5.2.0";
 
         ui::drawTrackedText (g, "SERIAL 00108  /  MODEL E  /  " + status,
-                             { 900, 926, 480, 12 }, ui::colour::textFaint.brighter (0.20f),
-                             juce::Justification::centredRight, ui::monoFont (6.0f), 0.2f);
+                             { 900, 926, 480, 13 }, ui::colour::textFaint.brighter (0.30f),
+                             juce::Justification::centredRight, ui::monoFont (6.5f), 0.2f);
 
         ui::drawTrackedText (g, "SERIES 5  ·  ANALOG SOUL / MODERN BUILD",
                              { 500, 938, 500, 8 }, ui::colour::amber.withAlpha (0.50f),
@@ -220,10 +216,10 @@ public:
 
     void resized() override
     {
-        brand.setBounds (60, 24, 320, 112);
-        presetDisplay.setBounds (398, 30, 560, 96);
-        scope.setBounds (976, 32, 196, 72);
-        voiceLeds.setBounds (1186, 31, 180, 40);
+        brand.setBounds (60, 20, 322, 124);
+        presetDisplay.setBounds (398, 24, 566, 112);
+        scope.setBounds (976, 26, 240, 90);
+        voiceLeds.setBounds (1228, 26, 150, 46);
         ribbon.setBounds (60, 788, 1320, 32);
         keyboard.setBounds (60, 828, 1320, 88);
     }
@@ -276,7 +272,7 @@ private:
                     mainSection (614, 320), ui::colour::emerald, ui::SectionPanel::Decoration::filter, 4);
         addSection ("FILTER EG", "INITIAL · ATTACK · ADSR · DEPTH",
                     mainSection (942, 250), ui::colour::sage, ui::SectionPanel::Decoration::filterEnv, 5);
-        addSection ("VCA", "SINE MIX / AMPLITUDE ENVELOPE",
+        addSection ("VCA", "SINE MIX / AMP ENVELOPE",
                     mainSection (1200, 180), ui::colour::rose, ui::SectionPanel::Decoration::ampEnv, 6);
 
         addSection ("CHANNEL II", "LAYER / SPLIT / ANALOG OFFSET",
@@ -343,27 +339,27 @@ private:
         // VCO 1
         fader (pid::vco1Level, { 72, 210, 46, 336 }, "LEVEL", ui::colour::amber);
         fader (pid::vco1Sub, { 126, 210, 46, 336 }, "SUB", ui::colour::amber);
-        knob (pid::vco1Octave, { 180, 216, 58, 82 }, 42, "OCT", ui::colour::amber);
-        knob (pid::vco1Detune, { 180, 306, 58, 82 }, 42, "DETUNE", ui::colour::amber);
+        knob (pid::vco1Octave, { 180, 216, 58, 82 }, 46, "OCT", ui::colour::amber);
+        knob (pid::vco1Detune, { 180, 306, 58, 82 }, 46, "DETUNE", ui::colour::amber);
 
         // VCO 2
         fader (pid::vco2Level, { 270, 210, 46, 336 }, "LEVEL", ui::colour::tangerine);
         fader (pid::vco2Pw, { 324, 210, 46, 336 }, "PW", ui::colour::tangerine);
-        knob (pid::vco2Octave, { 378, 216, 58, 82 }, 42, "OCT", ui::colour::tangerine);
-        knob (pid::vco2Detune, { 378, 306, 58, 82 }, 42, "DETUNE", ui::colour::tangerine);
+        knob (pid::vco2Octave, { 378, 216, 58, 82 }, 46, "OCT", ui::colour::tangerine);
+        knob (pid::vco2Detune, { 378, 306, 58, 82 }, 46, "DETUNE", ui::colour::tangerine);
 
         // Ring modulator / noise
-        knob (pid::ring, { 468, 214, 62, 100 }, 58, "RING MOD", ui::colour::copper);
-        knob (pid::ringSpeed, { 534, 214, 62, 100 }, 58, "SPEED", ui::colour::copper);
-        knob (pid::noise, { 501, 326, 62, 100 }, 58, "NOISE", ui::colour::copper);
+        knob (pid::ring, { 468, 212, 62, 104 }, 60, "RING MOD", ui::colour::copper);
+        knob (pid::ringSpeed, { 534, 212, 62, 104 }, 60, "SPEED", ui::colour::copper);
+        knob (pid::noise, { 501, 322, 62, 104 }, 60, "NOISE", ui::colour::copper);
 
         // Filters
         fader (pid::hpfCutoff, { 626, 210, 54, 336 }, "HP CUTOFF", ui::colour::emerald);
         fader (pid::lpfCutoff, { 688, 210, 54, 336 }, "LP CUTOFF", ui::colour::emerald);
-        knob (pid::hpfRes, { 752, 214, 64, 88 }, 44, "HP RES", ui::colour::emerald);
-        knob (pid::lpfRes, { 820, 214, 64, 88 }, 44, "LP RES", ui::colour::emerald);
-        knob (pid::drive, { 752, 320, 64, 88 }, 44, "DRIVE", ui::colour::emerald);
-        knob (pid::filterTrack, { 820, 320, 64, 88 }, 44, "TRACK", ui::colour::emerald);
+        knob (pid::hpfRes, { 752, 210, 64, 94 }, 48, "HP RES", ui::colour::emerald);
+        knob (pid::lpfRes, { 820, 210, 64, 94 }, 48, "LP RES", ui::colour::emerald);
+        knob (pid::drive, { 752, 314, 64, 94 }, 48, "DRIVE", ui::colour::emerald);
+        knob (pid::filterTrack, { 820, 314, 64, 94 }, 48, "TRACK", ui::colour::emerald);
 
         // Filter envelope, including the new sweep depth.
         const char* filterIds[] = { pid::fIl, pid::fAl, pid::fA, pid::fD, pid::fS,
@@ -385,46 +381,47 @@ private:
         // Channel II
         const int chX[] = { 70, 148, 226, 304, 382 };
 
-        knob (pid::layerLevel, { chX[0], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
-        knob (pid::layerDetune, { chX[1], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
-        knob (pid::layerOctave, { chX[2], 616, 76, 74 }, 36, "OCT", ui::colour::rose);
-        knob (pid::layerPan, { chX[3], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
-        choice (pid::layerMode, { chX[4], 616, 76, 74 }, ui::colour::rose);
-        knob (pid::layerCutoff, { chX[0], 692, 76, 74 }, 36, "CUTOFF", ui::colour::rose);
-        knob (pid::layerRes, { chX[1], 692, 76, 74 }, 36, "RES", ui::colour::rose);
-        knob (pid::layerPw, { chX[2], 692, 76, 74 }, 36, "PW", ui::colour::rose);
-        knob (pid::layerEnv, { chX[3], 692, 76, 74 }, 36, "ENV", ui::colour::rose);
-        knob (pid::splitPoint, { chX[4], 692, 76, 74 }, 36, "SPLIT", ui::colour::rose);
+        knob (pid::layerLevel, { chX[0], 622, 76, 70 }, 38, nullptr, ui::colour::rose);
+        knob (pid::layerDetune, { chX[1], 622, 76, 70 }, 38, nullptr, ui::colour::rose);
+        knob (pid::layerOctave, { chX[2], 622, 76, 70 }, 38, "OCT", ui::colour::rose);
+        knob (pid::layerPan, { chX[3], 622, 76, 70 }, 38, nullptr, ui::colour::rose);
+        choice (pid::layerMode, { chX[4], 622, 76, 70 }, ui::colour::rose);
+        knob (pid::layerCutoff, { chX[0], 698, 76, 70 }, 36, "CUTOFF", ui::colour::rose);
+        knob (pid::layerRes, { chX[1], 698, 76, 70 }, 36, "RES", ui::colour::rose);
+        knob (pid::layerPw, { chX[2], 698, 76, 70 }, 36, "PW", ui::colour::rose);
+        knob (pid::layerEnv, { chX[3], 698, 76, 70 }, 36, "ENV", ui::colour::rose);
+        knob (pid::splitPoint, { chX[4], 698, 76, 70 }, 36, "SPLIT", ui::colour::rose);
 
         // LFO
         const int lfoX[] = { 480, 562, 644, 726 };
-        knob (pid::lfoRate, { lfoX[0], 616, 78, 74 }, 36, "SPEED", ui::colour::slate);
-        choice (pid::lfoWave, { lfoX[1], 616, 78, 74 }, ui::colour::slate);
-        knob (pid::lfoDelay, { lfoX[2], 616, 78, 74 }, 36, "DELAY", ui::colour::slate);
-        knob (pid::lfoPitch, { lfoX[3], 616, 78, 74 }, 36, "PITCH", ui::colour::slate);
-        knob (pid::lfoPwm, { lfoX[0], 692, 78, 74 }, 36, "PWM", ui::colour::slate);
-        knob (pid::lfoFilter, { lfoX[1], 692, 78, 74 }, 36, "FILTER", ui::colour::slate);
-        knob (pid::lfoAmp, { lfoX[2], 692, 78, 74 }, 36, "TREM", ui::colour::slate);
+        knob (pid::lfoRate, { lfoX[0], 622, 78, 70 }, 36, "SPEED", ui::colour::slate);
+        choice (pid::lfoWave, { lfoX[1], 622, 78, 70 }, ui::colour::slate);
+        knob (pid::lfoDelay, { lfoX[2], 622, 78, 70 }, 36, "DELAY", ui::colour::slate);
+        knob (pid::lfoPitch, { lfoX[3], 622, 78, 70 }, 36, "PITCH", ui::colour::slate);
+        knob (pid::lfoPwm, { lfoX[0], 698, 78, 70 }, 36, "PWM", ui::colour::slate);
+        knob (pid::lfoFilter, { lfoX[1], 698, 78, 70 }, 36, "FILTER", ui::colour::slate);
+        knob (pid::lfoAmp, { lfoX[2], 698, 78, 70 }, 36, "TREM", ui::colour::slate);
 
         // Performance
         const int perfX[] = { 834, 902, 970, 1038 };
-        knob (pid::aftertouch, { perfX[0], 616, 68, 74 }, 36, nullptr, ui::colour::sage);
-        knob (pid::bendRange, { perfX[1], 616, 68, 74 }, 36, "BEND", ui::colour::sage);
-        knob (pid::spread, { perfX[2], 616, 68, 74 }, 36, nullptr, ui::colour::sage);
-        knob (pid::twang, { perfX[3], 616, 68, 74 }, 36, "TWANG", ui::colour::sage);
-        knob (pid::velocity, { perfX[0], 692, 68, 74 }, 36, nullptr, ui::colour::sage);
-        knob (pid::glide, { perfX[1], 692, 68, 74 }, 36, nullptr, ui::colour::sage);
-        knob (pid::vintage, { perfX[2], 692, 68, 74 }, 36, "VINTAGE", ui::colour::sage);
+        knob (pid::aftertouch, { perfX[0], 622, 68, 70 }, 36, nullptr, ui::colour::sage);
+        knob (pid::bendRange, { perfX[1], 622, 68, 70 }, 36, "BEND", ui::colour::sage);
+        knob (pid::spread, { perfX[2], 622, 68, 70 }, 36, nullptr, ui::colour::sage);
+        knob (pid::twang, { perfX[3], 622, 68, 70 }, 36, "TWANG", ui::colour::sage);
+        knob (pid::velocity, { perfX[0], 698, 68, 70 }, 36, nullptr, ui::colour::sage);
+        knob (pid::glide, { perfX[1], 698, 68, 70 }, 36, nullptr, ui::colour::sage);
+        knob (pid::vintage, { perfX[2], 698, 68, 70 }, 36, "VINTAGE", ui::colour::sage);
 
         // Output
-        knob (pid::master, { 1142, 616, 54, 74 }, 42, "MASTER", ui::colour::gold);
-        knob (pid::tune, { 1196, 616, 54, 74 }, 42, nullptr, ui::colour::gold);
-        knob (pid::brilliance, { 1250, 616, 54, 74 }, 42, "BRILL", ui::colour::gold);
-        knob (pid::ensemble, { 1142, 692, 54, 74 }, 42, "ENSEMBLE", ui::colour::gold);
-        knob (pid::space, { 1196, 692, 54, 74 }, 42, "SPACE", ui::colour::gold);
+        knob (pid::master, { 1139, 622, 64, 70 }, 38, "MASTER", ui::colour::gold);
+        knob (pid::tune, { 1205, 622, 64, 70 }, 38, nullptr, ui::colour::gold);
+        knob (pid::brilliance, { 1271, 622, 64, 70 }, 38, "BRILL", ui::colour::gold);
+        knob (pid::ensemble, { 1139, 698, 64, 70 }, 38, "ENSEMBLE", ui::colour::gold);
+        choice (pid::ensembleMode, { 1205, 698, 64, 70 }, ui::colour::gold);
+        knob (pid::space, { 1271, 698, 64, 70 }, 38, "SPACE", ui::colour::gold);
 
         auto meter = std::make_unique<ui::MeterDisplay> (processor.getEngine());
-        meter->setBounds (1264, 618, 48, 146);
+        meter->setBounds (1339, 624, 33, 144);
         addAndMakeVisible (*meter);
         controls.push_back (std::move (meter));
     }

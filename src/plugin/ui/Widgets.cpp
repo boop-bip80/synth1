@@ -165,108 +165,162 @@ void SectionPanel::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
 
-    drawPlate (g, bounds, 4.5f);
+    drawPlate (g, bounds, 5.0f);
 
-    // A soft section-coloured wash behind the controls.
+    // A warm wash of the section colour behind the controls. The strongest
+    // part of the tint sits under the header, where it reads as a lit band.
     {
         juce::Graphics::ScopedSaveState save (g);
         juce::Path clip;
-        clip.addRoundedRectangle (bounds.reduced (1.0f), 4.0f);
+        clip.addRoundedRectangle (bounds.reduced (1.0f), 4.5f);
         g.reduceClipRegion (clip);
 
-        g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.105f),
+        g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.30f),
                                                  bounds.getCentreX(), bounds.getY(),
-                                                 accent.withAlpha (0.012f),
-                                                 bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.72f, false));
+                                                 accent.withAlpha (0.035f),
+                                                 bounds.getCentreX(), bounds.getY() + bounds.getHeight() * 0.86f, false));
         g.fillRect (bounds);
 
-        drawGlow (g, { bounds.getX() + 30.0f, bounds.getY() + 20.0f },
-                  bounds.getWidth() * 0.52f, accent, 0.16f);
+        drawGlow (g, { bounds.getX() + 24.0f, bounds.getY() + 12.0f },
+                  bounds.getWidth() * 0.68f, accent, 0.38f);
+
+        // Fine engraved rules at the top and bottom of the control field.
+        g.setColour (juce::Colours::black.withAlpha (0.30f));
+        g.drawLine (bounds.getX() + 9.0f, bounds.getBottom() - 14.0f,
+                    bounds.getRight() - 9.0f, bounds.getBottom() - 14.0f, 0.7f);
+        g.setColour (accent.withAlpha (0.16f));
+        g.drawLine (bounds.getX() + 9.0f, bounds.getBottom() - 13.2f,
+                    bounds.getRight() - 9.0f, bounds.getBottom() - 13.2f, 0.6f);
+
+        const int ticks = juce::jmax (4, (int) (bounds.getWidth() / 26.0f));
+        for (int i = 0; i <= ticks; ++i)
+        {
+            const float tx = bounds.getX() + 12.0f
+                           + (bounds.getWidth() - 24.0f) * (float) i / (float) ticks;
+            g.setColour (accent.withAlpha (0.22f));
+            g.drawLine (tx, bounds.getBottom() - 20.0f, tx, bounds.getBottom() - 16.0f, 0.6f);
+        }
     }
 
-    // Lit rail across the top, brightest at the left.
-    g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.94f),
-                                             10.0f, 1.6f,
-                                             accent.withAlpha (0.08f),
-                                             (float) getWidth() - 10.0f, 1.6f, false));
-    g.fillRect (juce::Rectangle<float> (10.0f, 1.4f, (float) getWidth() - 20.0f, 2.0f));
-    g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.14f),
-                                             (float) getWidth() * 0.5f, 1.0f,
-                                             juce::Colours::transparentBlack,
-                                             (float) getWidth() * 0.5f, 26.0f, false));
-    g.fillRect (juce::Rectangle<float> (7.0f, 1.0f, (float) getWidth() - 14.0f, 26.0f));
+    // Saturated header band.
+    const juce::Rectangle<float> header (bounds.getX() + 2.0f, bounds.getY() + 2.0f,
+                                         bounds.getWidth() - 4.0f, (float) titleHeight - 4.0f);
 
-    // Recessed, tinted header band.
-    auto header = bounds.removeFromTop ((float) titleHeight).reduced (2.2f, 1.6f);
+    {
+        juce::Graphics::ScopedSaveState save (g);
+        juce::Path headerClip;
+        headerClip.addRoundedRectangle (header, 3.4f);
+        g.reduceClipRegion (headerClip);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff04070a),
-                                             header.getCentreX(), header.getY(),
-                                             juce::Colour (0xff111a21),
-                                             header.getCentreX(), header.getBottom(), false));
-    g.fillRoundedRectangle (header, 2.4f);
+        g.setGradientFill (juce::ColourGradient (colour::plateTop,
+                                                 header.getCentreX(), header.getY(),
+                                                 juce::Colour (0xff0a0806),
+                                                 header.getCentreX(), header.getBottom(), false));
+        g.fillRect (header);
 
-    g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.22f),
-                                             header.getX(), header.getCentreY(),
-                                             juce::Colours::transparentBlack,
-                                             header.getX() + 92.0f, header.getCentreY(), false));
-    g.fillRoundedRectangle (header, 2.4f);
+        g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.62f),
+                                                 header.getX(), header.getY(),
+                                                 accent.withAlpha (0.10f),
+                                                 header.getRight(), header.getBottom(), false));
+        g.fillRect (header);
 
-    g.setColour (juce::Colours::black.withAlpha (0.68f));
-    g.drawRoundedRectangle (header, 2.4f, 0.9f);
+        g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.10f),
+                                                 header.getX(), header.getY(),
+                                                 juce::Colours::transparentWhite,
+                                                 header.getRight(), header.getY() + 14.0f, false));
+        g.fillRect (header.withHeight (14.0f));
 
-    g.setColour (juce::Colours::white.withAlpha (0.05f));
-    g.drawLine (header.getX() + 3.0f, header.getY() + 0.8f,
-                header.getRight() - 3.0f, header.getY() + 0.8f, 0.7f);
+        g.setColour (accent.withAlpha (0.96f));
+        g.fillRect (header.getX(), header.getY(), header.getWidth(), 2.0f);
 
-    // Accent jewel at the left edge.
-    g.setColour (accent.withAlpha (0.99f));
-    g.fillRoundedRectangle (12.0f, 9.0f, 3.2f, 16.0f, 1.6f);
-    drawGlow (g, { 13.6f, 17.0f }, 22.0f, accent, 0.38f);
+        g.setColour (juce::Colours::black.withAlpha (0.72f));
+        g.fillRect (header.getX(), header.getBottom() - 2.0f, header.getWidth(), 2.0f);
+    }
 
-    drawEngravedText (g, title, { 22, 5, getWidth() - 58, 17 },
-                      colour::cream.withAlpha (0.98f),
+    g.setColour (juce::Colours::black.withAlpha (0.74f));
+    g.drawRoundedRectangle (header.reduced (0.4f), 3.2f, 0.9f);
+
+    // Jewelled accent capsule at the left edge.
+    const juce::Rectangle<float> jewel (header.getX() + 8.0f, header.getCentreY() - 8.5f, 3.6f, 17.0f);
+    g.setGradientFill (juce::ColourGradient (accent.brighter (0.55f), jewel.getX(), jewel.getY(),
+                                             accent.darker (0.35f), jewel.getRight(), jewel.getBottom(), false));
+    g.fillRoundedRectangle (jewel, 1.8f);
+    drawGlow (g, jewel.getCentre(), 24.0f, accent, 0.55f);
+
+    drawEngravedText (g, title, { 20, 4, getWidth() - 58, 19 },
+                      colour::cream.withAlpha (0.99f),
                       juce::Justification::centredLeft,
-                      trackedFont (10.2f, 1.9f, true), 0.5f);
+                      trackedFont (11.6f, 1.8f, true), 0.5f);
 
     if (subtitle.isNotEmpty())
-        drawEngravedText (g, subtitle, { 22, 20, getWidth() - 58, 9 },
-                          colour::textFaint.brighter (0.28f),
+        drawEngravedText (g, subtitle, { 20, 22, getWidth() - 52, 10 },
+                          colour::textDim.withAlpha (0.80f),
                           juce::Justification::centredLeft,
-                          monoFont (6.1f), 0.3f);
+                          monoFont (6.9f), 0.3f);
 
-    // Numbered card plate at the right, like a slot stamp.
+    // Numbered card plate, stamped like a slot card.
     if (number > 0)
     {
-        const juce::Rectangle<float> plate ((float) getWidth() - 31.0f, 8.0f, 20.0f, 18.0f);
-        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1b252d),
+        const juce::Rectangle<float> plate ((float) getWidth() - 32.0f, 9.0f, 21.0f, 17.0f);
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff2b241c),
                                                  plate.getCentreX(), plate.getY(),
-                                                 juce::Colour (0xff030608),
+                                                 juce::Colour (0xff050403),
                                                  plate.getCentreX(), plate.getBottom(), false));
-        g.fillRoundedRectangle (plate, 2.0f);
+        g.fillRoundedRectangle (plate, 2.2f);
 
-        g.setColour (accent.withAlpha (0.40f));
-        g.drawRoundedRectangle (plate.reduced (0.5f), 2.0f, 0.7f);
+        g.setColour (accent.withAlpha (0.58f));
+        g.drawRoundedRectangle (plate.reduced (0.5f), 2.2f, 0.7f);
 
         drawTrackedText (g, juce::String (number).paddedLeft ('0', 2),
-                         plate.toNearestInt(), accent.withAlpha (0.78f),
+                         plate.toNearestInt(), accent.brighter (0.18f).withAlpha (0.92f),
                          juce::Justification::centred,
-                         monoFont (6.6f, true), 0.4f);
+                         monoFont (7.4f, true), 0.4f);
     }
 
-    g.setColour (accent.withAlpha (0.26f));
-    g.drawLine (7.0f, (float) titleHeight - 0.5f, (float) getWidth() - 7.0f,
-                (float) titleHeight - 0.5f, 0.8f);
-
-    // Fine corner marks, a small detail that makes the card feel machined.
-    const float len = 7.0f;
+    // Brass corner marks.
+    const float len = 8.0f;
     const float inset = 5.0f;
-    g.setColour (accent.withAlpha (0.26f));
-    g.drawLine (inset, inset, inset + len, inset, 0.7f);
-    g.drawLine (inset, inset, inset, inset + len, 0.7f);
+    g.setColour (colour::brass.withAlpha (0.34f));
+    g.drawLine (inset, inset, inset + len, inset, 0.8f);
+    g.drawLine (inset, inset, inset, inset + len, 0.8f);
     g.drawLine ((float) getWidth() - inset, (float) getHeight() - inset,
-                (float) getWidth() - inset - len, (float) getHeight() - inset, 0.7f);
+                (float) getWidth() - inset - len, (float) getHeight() - inset, 0.8f);
     g.drawLine ((float) getWidth() - inset, (float) getHeight() - inset,
-                (float) getWidth() - inset, (float) getHeight() - inset - len, 0.7f);
+                (float) getWidth() - inset, (float) getHeight() - inset - len, 0.8f);
+
+    // A lit spine down the left cheek and a pair of slot screws give each
+    // module the look of a removable voice card.
+    g.setGradientFill (juce::ColourGradient (accent.withAlpha (0.62f),
+                                             (float) bounds.getX() + 2.0f, bounds.getY(),
+                                             accent.withAlpha (0.05f),
+                                             (float) bounds.getX() + 2.0f, bounds.getBottom(), false));
+    g.fillRect (juce::Rectangle<float> ((float) bounds.getX() + 1.2f, (float) bounds.getY() + 7.0f,
+                                        1.8f, (float) bounds.getHeight() - 14.0f));
+
+    drawScrew (g, { (float) bounds.getX() + 8.0f, (float) bounds.getY() + 8.0f }, 2.2f);
+    drawScrew (g, { (float) bounds.getRight() - 8.0f, (float) bounds.getBottom() - 8.0f }, 2.2f);
+
+    // A calibration rail fills the lower margin of the tall channel cards and
+    // makes the empty panel area look deliberately laid out.
+    if (getHeight() > 320)
+    {
+        const juce::Rectangle<float> rail ((float) bounds.getX() + 10.0f,
+                                           (float) bounds.getBottom() - 19.0f,
+                                           (float) bounds.getWidth() - 20.0f, 11.0f);
+
+        g.setColour (juce::Colours::black.withAlpha (0.30f));
+        g.fillRoundedRectangle (rail, 2.0f);
+        g.setColour (accent.withAlpha (0.42f));
+        g.fillRect (rail.getX(), rail.getY(), rail.getWidth(), 0.9f);
+
+        drawTrackedText (g, "VOICE CARD A   ·   CALIBRATED", rail.toNearestInt(),
+                         colour::textFaint.withAlpha (0.62f), juce::Justification::centred,
+                         monoFont (5.8f), 0.35f);
+
+        g.setColour (accent.withAlpha (0.60f));
+        g.fillEllipse (rail.getX() + 4.0f, rail.getCentreY() - 1.2f, 2.4f, 2.4f);
+        g.fillEllipse (rail.getRight() - 6.4f, rail.getCentreY() - 1.2f, 2.4f, 2.4f);
+    }
 
     paintDecoration (g, getLocalBounds().toFloat().withTrimmedTop ((float) titleHeight + 2.0f));
 }
@@ -276,8 +330,8 @@ void SectionPanel::paintDecoration (juce::Graphics& g, juce::Rectangle<float> bo
     if (decoration == Decoration::none || body.getHeight() < 30.0f)
         return;
 
-    const auto area = body.reduced (18.0f, 28.0f);
-    const float alpha = 0.135f;
+    const auto area = body.reduced (14.0f, 24.0f);
+    const float alpha = 0.28f;
 
     switch (decoration)
     {
@@ -460,14 +514,14 @@ void ParamFader::paint (juce::Graphics& g)
 
         if (active)
         {
-            g.setColour (accent.withAlpha (0.16f));
+            g.setColour (accent.withAlpha (0.18f));
             g.fillRoundedRectangle (textArea.reduced (2, 1).toFloat(), 2.0f);
         }
 
         drawTrackedText (g, valueText, textArea,
-                         active ? accent.brighter (0.38f) : colour::cream.withAlpha (0.82f),
+                         active ? accent.brighter (0.42f) : colour::cream.withAlpha (0.90f),
                          juce::Justification::centred,
-                         monoFont (narrow ? 7.0f : 8.5f, true), 0.2f);
+                         monoFont (narrow ? 7.3f : 9.1f, true), 0.2f);
 
         if (active)
         {
@@ -477,9 +531,14 @@ void ParamFader::paint (juce::Graphics& g)
         }
     }
 
-    drawTrackedText (g, label, bounds.removeFromBottom (19),
-                     colour::textDim.brighter (0.16f), juce::Justification::centred,
-                     trackedFont (7.5f, 0.9f, true), 0.3f);
+    const auto labelArea = bounds.removeFromBottom (19);
+    drawTrackedText (g, label, labelArea,
+                     colour::textDim.brighter (0.14f), juce::Justification::centred,
+                     trackedFont (8.1f, 0.9f, true), 0.35f);
+
+    g.setColour (accent.withAlpha (0.42f));
+    g.fillRect ((float) labelArea.getCentreX() - 9.0f, (float) labelArea.getY() - 1.0f,
+                18.0f, 1.0f);
 }
 
 void ParamFader::resized()
@@ -533,13 +592,13 @@ void ParamKnob::paint (juce::Graphics& g)
         const bool active = slider.isMouseOverOrDragging();
 
         drawTrackedText (g, valueText, bounds.removeFromBottom (15),
-                         active ? accent.brighter (0.34f) : colour::cream.withAlpha (0.78f),
-                         juce::Justification::centred, monoFont (8.0f, true), 0.2f);
+                         active ? accent.brighter (0.40f) : colour::cream.withAlpha (0.88f),
+                         juce::Justification::centred, monoFont (8.8f, true), 0.2f);
     }
 
     drawTrackedText (g, label, bounds.removeFromBottom (13),
                      colour::textDim.brighter (0.14f), juce::Justification::centred,
-                     trackedFont (7.2f, 0.7f, true), 0.2f);
+                     trackedFont (7.9f, 0.7f, true), 0.25f);
 }
 
 void ParamKnob::resized()
@@ -601,8 +660,8 @@ void ParamChoice::paint (juce::Graphics& g)
         const auto text = choiceParameter->getCurrentValueAsText().toUpperCase();
         const auto textArea = selector.toNearestInt().withTrimmedLeft (8).withTrimmedRight (18);
 
-        drawTrackedText (g, text, textArea, accent.brighter (0.40f),
-                         juce::Justification::centredLeft, monoFont (8.2f, true), 0.35f);
+        drawTrackedText (g, text, textArea, accent.brighter (0.46f),
+                         juce::Justification::centredLeft, monoFont (9.0f, true), 0.35f);
 
         const float arrowX = selector.getRight() - 9.0f;
         const float arrowY = selector.getCentreY() - 1.0f;
@@ -620,7 +679,7 @@ void ParamChoice::paint (juce::Graphics& g)
 
     drawTrackedText (g, label, bounds.removeFromBottom (14),
                      colour::textDim.brighter (0.14f), juce::Justification::centred,
-                     trackedFont (7.2f, 0.7f, true), 0.2f);
+                     trackedFont (7.9f, 0.7f, true), 0.25f);
 }
 
 void ParamChoice::resized() {}
@@ -738,96 +797,120 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 //==============================================================================
 void BrandPlate::paint (juce::Graphics& g)
 {
-    const auto plate = juce::Rectangle<float> (0.0f, 0.0f, (float) getWidth(), 92.0f);
+    const auto plate = getLocalBounds().toFloat();
 
-    g.setColour (juce::Colours::black.withAlpha (0.66f));
-    g.fillRoundedRectangle (plate.expanded (2.0f).translated (0.0f, 2.0f), 6.0f);
+    // Outer shadow, lacquered body and a proud brass frame.
+    g.setColour (juce::Colours::black.withAlpha (0.72f));
+    g.fillRoundedRectangle (plate.expanded (2.4f).translated (0.0f, 3.0f), 7.0f);
 
-    juce::ColourGradient lacquer (juce::Colour (0xff202a31),
+    juce::ColourGradient lacquer (juce::Colour (0xff30271d),
                                   plate.getCentreX(), plate.getY(),
-                                  juce::Colour (0xff030507),
+                                  juce::Colour (0xff050403),
                                   plate.getCentreX(), plate.getBottom(), false);
-    lacquer.addColour (0.36, juce::Colour (0xff11181e));
+    lacquer.addColour (0.32, juce::Colour (0xff1a1510));
+    lacquer.addColour (0.72, juce::Colour (0xff0b0907));
     g.setGradientFill (lacquer);
-    g.fillRoundedRectangle (plate, 5.0f);
+    g.fillRoundedRectangle (plate, 6.0f);
 
-    g.setGradientFill (juce::ColourGradient (colour::amber.withAlpha (0.10f),
-                                             plate.getCentreX(), plate.getY(),
-                                             juce::Colours::transparentBlack,
-                                             plate.getCentreX(), plate.getY() + 60.0f, false));
-    g.fillRoundedRectangle (plate, 5.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff0d59f).withAlpha (0.52f),
+                                             plate.getX(), plate.getY(),
+                                             juce::Colour (0xff6c4a24).withAlpha (0.24f),
+                                             plate.getRight(), plate.getBottom(), false));
+    g.drawRoundedRectangle (plate.reduced (1.1f), 5.2f, 1.3f);
 
-    g.setColour (juce::Colours::black.withAlpha (0.92f));
-    g.drawRoundedRectangle (plate.reduced (0.5f), 5.0f, 1.2f);
+    g.setColour (juce::Colours::black.withAlpha (0.94f));
+    g.drawRoundedRectangle (plate.reduced (0.5f), 6.0f, 1.2f);
 
-    g.setColour (juce::Colour (0xffd6ad76).withAlpha (0.52f));
-    g.drawRoundedRectangle (plate.reduced (2.0f), 4.0f, 0.9f);
+    g.setColour (juce::Colours::white.withAlpha (0.09f));
+    g.drawLine (plate.getX() + 8.0f, plate.getY() + 1.1f,
+                plate.getRight() - 8.0f, plate.getY() + 1.1f, 0.9f);
 
-    g.setColour (juce::Colours::white.withAlpha (0.07f));
-    g.drawLine (plate.getX() + 6.0f, plate.getY() + 1.2f,
-                plate.getRight() - 6.0f, plate.getY() + 1.2f, 0.8f);
+    drawGlow (g, { plate.getCentreX(), plate.getY() + plate.getHeight() * 0.38f },
+              plate.getWidth() * 0.52f, colour::amber, 0.28f);
+    drawGlow (g, { plate.getX() + 22.0f, plate.getBottom() - 18.0f },
+              plate.getWidth() * 0.44f, colour::aurora, 0.10f);
 
-    // Soft bloom behind the chrome.
-    drawGlow (g, { plate.getCentreX(), plate.getY() + 36.0f }, 120.0f, colour::amber, 0.18f);
+    // Small maker line.
+    drawTrackedText (g, "FREEBUFF AUDIO  /  MODEL E", { 14, 7, 190, 9 },
+                     colour::textFaint.withAlpha (0.78f),
+                     juce::Justification::centredLeft, trackedFont (5.8f, 1.6f, true), 0.4f);
 
-    drawChromeText (g, "CS-80E", { 12, 4, getWidth() - 24, 58 },
-                    displayFont (47.0f),
-                    juce::Colour (0xfffffaf0),
-                    juce::Colour (0xffb7884d), 1.4f);
+    // Big chrome wordmark.
+    drawChromeText (g, "CS-80E", { 8, 11, getWidth() - 96, 58 },
+                    displayFont (49.0f),
+                    juce::Colour (0xfffffbf2),
+                    juce::Colour (0xffb07d3e), 1.8f);
 
-    // Series tag, in brass.
-    const juce::Rectangle<float> tag ((float) getWidth() - 83.0f, 12.0f, 66.0f, 17.0f);
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff2d39c),
+    // Brass series tag, pinned to the top right.
+    const juce::Rectangle<float> tag ((float) getWidth() - 79.0f, 13.0f, 63.0f, 17.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffffe4b2),
                                              tag.getCentreX(), tag.getY(),
-                                             juce::Colour (0xff7a5224),
+                                             juce::Colour (0xff7d5627),
                                              tag.getCentreX(), tag.getBottom(), false));
-    g.fillRoundedRectangle (tag, 2.0f);
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
-    g.drawRoundedRectangle (tag, 2.0f, 0.8f);
-    drawTrackedText (g, "SERIES 5", tag.toNearestInt(), juce::Colour (0xff251607),
-                     juce::Justification::centred, trackedFont (6.0f, 1.1f, true), 0.3f);
+    g.fillRoundedRectangle (tag, 2.2f);
+    g.setColour (juce::Colours::black.withAlpha (0.58f));
+    g.drawRoundedRectangle (tag, 2.2f, 0.8f);
+    drawTrackedText (g, "SERIES 5", tag.toNearestInt(), juce::Colour (0xff241506),
+                     juce::Justification::centred, trackedFont (6.6f, 1.2f, true), 0.3f);
 
-    // Warm rule and cool counter-rule.
-    g.setColour (colour::amber.withAlpha (0.98f));
-    g.fillRect (juce::Rectangle<float> (12.0f, 72.0f, 222.0f, 1.8f));
-    g.setColour (colour::amberDim);
-    g.fillRect (juce::Rectangle<float> (240.0f, 72.0f, 42.0f, 1.8f));
-    g.setColour (colour::aurora.withAlpha (0.50f));
-    g.fillRect (juce::Rectangle<float> (12.0f, 75.0f, 38.0f, 1.0f));
-
-    drawLed (g, { (float) getWidth() - 14.0f, 40.0f, 4.4f, 4.4f }, true, colour::amber, 0.55f);
-
+    // Constitution line.
     drawTrackedText (g, "DUAL CHANNEL POLYPHONIC SYNTHESIZER",
-                     { 12, 79, getWidth() - 24, 10 },
-                     colour::cream.withAlpha (0.90f), juce::Justification::centredLeft,
-                     trackedFont (7.2f, 2.0f, false), 0.6f);
+                     { 14, 69, getWidth() - 28, 11 },
+                     colour::cream.withAlpha (0.92f),
+                     juce::Justification::centredLeft, trackedFont (7.6f, 1.8f), 0.6f);
 
-    drawTrackedText (g, "EIGHT VOICE  ·  DUAL CARD  ·  61 KEY",
-                     { 12, 92, getWidth() - 24, 9 },
-                     colour::textFaint.brighter (0.32f), juce::Justification::centredLeft,
-                     monoFont (6.1f), 0.3f);
+    g.setColour (colour::amber.withAlpha (0.90f));
+    g.fillRect (juce::Rectangle<float> (14.0f, 82.0f, 156.0f, 1.6f));
+    g.setColour (colour::amberDim);
+    g.fillRect (juce::Rectangle<float> (174.0f, 82.0f, 34.0f, 1.6f));
+    g.setColour (colour::aurora.withAlpha (0.52f));
+    g.fillRect (juce::Rectangle<float> (14.0f, 85.0f, 30.0f, 1.0f));
 
-    drawTrackedText (g, "ANALOG SOUL / MODERN BUILD",
-                     { 12, 102, getWidth() - 24, 8 },
-                     colour::amber.withAlpha (0.66f), juce::Justification::centredLeft,
-                     trackedFont (5.2f, 1.3f, true), 0.2f);
+    // Feature chips.
+    const char* const chips[] = { "8 VOICE", "POLY TOUCH", "RIB BEND" };
+    float chipX = 14.0f;
 
-    // A tiny engraved waveform emblem at the right of the plaque.
-    juce::Path emblem;
-    const float ex = plate.getRight() - 54.0f;
-    const float ey = 54.0f;
-    for (int i = 0; i <= 24; ++i)
+    for (const char* chip : chips)
     {
-        const float t = (float) i / 24.0f;
+        const float width = 7.0f * (float) juce::String (chip).length() + 14.0f;
+        const juce::Rectangle<float> pill (chipX, 92.0f, width, 17.0f);
+
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff221c15),
+                                                 pill.getCentreX(), pill.getY(),
+                                                 juce::Colour (0xff070605),
+                                                 pill.getCentreX(), pill.getBottom(), false));
+        g.fillRoundedRectangle (pill, 2.4f);
+        g.setColour (colour::brass.withAlpha (0.34f));
+        g.drawRoundedRectangle (pill, 2.4f, 0.7f);
+
+        drawTrackedText (g, chip, pill.toNearestInt(), colour::textDim.withAlpha (0.88f),
+                         juce::Justification::centred, trackedFont (5.9f, 1.0f, true), 0.2f);
+
+        chipX += width + 7.0f;
+    }
+
+    // Power jewel.
+    drawLed (g, { (float) getWidth() - 34.0f, 106.0f, 6.4f, 6.4f }, true, colour::amber, 0.92f);
+    drawTrackedText (g, "POWER", { getWidth() - 66, 114, 46, 8 },
+                     colour::textFaint, juce::Justification::centredRight,
+                     trackedFont (5.2f, 1.0f, true), 0.2f);
+
+    // A tiny engraved saw emblem in the lower right.
+    juce::Path emblem;
+    const float ex = plate.getRight() - 92.0f;
+    const float ey = plate.getBottom() - 16.0f;
+    for (int i = 0; i <= 16; ++i)
+    {
+        const float t = (float) i / 16.0f;
         const float x = ex + t * 40.0f;
-        const float y = ey - std::sin (t * 2.0f * kPi * 2.0f) * 7.0f * (0.35f + t * 0.65f);
+        const float y = ey - std::fmod (t * 3.0f, 1.0f) * 11.0f + 5.5f;
         if (i == 0)
             emblem.startNewSubPath (x, y);
         else
             emblem.lineTo (x, y);
     }
-    g.setColour (colour::amber.withAlpha (0.42f));
-    g.strokePath (emblem, juce::PathStrokeType (0.9f, juce::PathStrokeType::curved,
+    g.setColour (colour::amber.withAlpha (0.40f));
+    g.strokePath (emblem, juce::PathStrokeType (1.0f, juce::PathStrokeType::curved,
                                                  juce::PathStrokeType::rounded));
 }
 

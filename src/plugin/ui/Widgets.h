@@ -37,7 +37,7 @@ public:
 
     void paint (juce::Graphics&) override;
 
-    static constexpr int titleHeight = 36;
+    static constexpr int titleHeight = 40;
 
     void setAccentColour (juce::Colour newColour) { accent = newColour; repaint(); }
 
