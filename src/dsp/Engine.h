@@ -30,8 +30,21 @@ public:
     double sampleRate() const;
     bool isPrepared() const;
 
+    /** Delay introduced by the oversampled voice path, in host samples. The
+        voice runs at twice the host rate through a linear-phase half-band
+        decimator, so the group delay is (taps - 1) / 4 host samples. */
+    static int latencySamples() noexcept;
+
+    /** Host-rate multiplier used inside each voice. */
+    static double oversamplingFactor() noexcept;
+
     void setParams (const Params& newParams);
     Params params() const;
+
+    /** Note currently assigned to a voice slot, or -1 when the slot is idle.
+        Exposed for the UI, tests and host diagnostics. */
+    int voiceNote (int index) const;
+    bool voiceIsActive (int index) const;
 
     void noteOn (int midiNote, float velocity);
     void noteOff (int midiNote);

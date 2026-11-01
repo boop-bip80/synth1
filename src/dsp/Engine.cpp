@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include "Dsp.h"
+#include "Oscillator.h"
 
 #include <algorithm>
 #include <array>
@@ -19,6 +20,11 @@ namespace
 constexpr int kControlBlock = 8;
 constexpr int kMixBlock = 512;
 constexpr int kPitchBlocks = kMixBlock / kControlBlock + 1;
+
+/** Length of the raised-cosine hand-over applied when a voice is stolen or
+    retriggered. 64 host samples is 1.3 ms at 48 kHz: short enough to be
+    inaudible as a delay, long enough to remove the edge completely. */
+constexpr int kDeclickSamples = 64;
 
 /** Fixed trim in front of the master fader. It leaves enough room for an
     eight-note chord to breathe before the output stage has to limit. */
@@ -39,13 +45,13 @@ inline float smoothingCoefficient (float timeSeconds, double sampleRate, int num
     return 1.0f - std::exp (-blocks / (tau * (float) sampleRate));
 }
 
-inline float lfoWaveform (float wave, float phase) noexcept
+inline float lfoWaveform (float wave, float phase, const Wavetables& tables) noexcept
 {
     if (wave < 0.5f)  // triangle
         return 1.0f - 4.0f * std::abs (phase - 0.5f);
 
     if (wave < 1.5f)  // sine
-        return std::sin (2.0f * kPi * phase);
+        return tables.readSine (phase);
 
     if (wave < 2.5f)  // square
         return phase < 0.5f ? 1.0f : -1.0f;
@@ -105,8 +111,9 @@ struct Modulation
 class Chorus
 {
 public:
-    void prepare (double newSampleRate)
+    void prepare (double newSampleRate, const Wavetables& sharedTables)
     {
+        tables = &sharedTables;
         sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;
         bufferSize = std::max (256, (int) (sampleRate * 0.09) + 8);
         bufferL.assign ((size_t) bufferSize, 0.0f);
@@ -115,6 +122,7 @@ public:
         feedbackHighpassCoeff = 1.0f - std::exp (-2.0f * kPi * 95.0f / (float) sampleRate);
         toneCoeff = 1.0f - std::exp (-2.0f * kPi * 8200.0f / (float) sampleRate);
         lowShelfCoeff = 1.0f - std::exp (-2.0f * kPi * 220.0f / (float) sampleRate);
+        amountCoeff = 1.0f - std::exp (-1.0f / (0.020f * (float) sampleRate));
 
         reset();
     }
@@ -130,12 +138,25 @@ public:
         feedbackHighpassL = feedbackHighpassR = 0.0f;
         toneL = toneR = 0.0f;
         lowL = lowR = 0.0f;
+        smoothedAmount = 0.0f;
+        tailPeak = 0.0f;
+        cold = true;
     }
 
     void process (float* left, float* right, int numSamples, float amount)
     {
-        if (amount <= 0.0005f || bufferSize <= 0)
+        const float target = clampf (amount, 0.0f, 1.0f);
+
+        // When the ensemble is fully faded and its tail has genuinely decayed,
+        // the delay lines have been cleared, so skipping is safe and there is
+        // no stale audio to burst out when it is switched back on.
+        if (cold && target <= 1.0e-4f)
             return;
+
+        if (tables == nullptr || bufferSize <= 0)
+            return;
+
+        cold = false;
 
         // Five BBD taps, each with its own rate, depth and stereo phase. The
         // wider spacing and the extra tap turn the ensemble from a gentle
@@ -145,12 +166,13 @@ public:
         const float rate[5] = { 0.19f, 0.23f, 0.13f, 0.097f, 0.071f };
         const float tapGain[5] = { 0.46f, 0.30f, 0.22f, 0.16f, 0.11f };
 
-        const float dryGain = 1.0f - 0.28f * amount;
-        const float wetGain = 0.67f * amount;
         const float slowIncrement = 0.083f / (float) sampleRate;
+        float blockPeak = 0.0f;
 
         for (int i = 0; i < numSamples; ++i)
         {
+            smoothedAmount += (target - smoothedAmount) * amountCoeff;
+
             const float inL = left[i];
             const float inR = right[i];
 
@@ -158,15 +180,20 @@ public:
             bufferR[(size_t) write] = inR + feedbackR;
 
             // A very slow wobble of the whole delay line gives the ensemble
-            // the gentle pitch drift a real string machine has.
-            const float drift = 1.0f + 0.055f * std::sin (2.0f * kPi * slowPhase);
+            // the gentle pitch drift a real string machine has. All modulation
+            // reads come from the shared sine table: no libm on the audio thread.
+            const float drift = 1.0f + 0.055f * tables->readSine (slowPhase);
 
             float wetL = 0.0f, wetR = 0.0f;
 
             for (int tap = 0; tap < 5; ++tap)
             {
-                const float modL = std::sin (2.0f * kPi * phases[(size_t) tap]);
-                const float modR = std::sin (2.0f * kPi * (phases[(size_t) tap] + 0.43f));
+                float phaseR = phases[(size_t) tap] + 0.43f;
+                if (phaseR >= 1.0f)
+                    phaseR -= 1.0f;
+
+                const float modL = tables->readSine (phases[(size_t) tap]);
+                const float modR = tables->readSine (phaseR);
 
                 const float delayL = (baseDelay[tap] * drift + depth[tap] * modL) * (float) sampleRate;
                 const float delayR = (baseDelay[tap] * drift + depth[tap] * modR) * (float) sampleRate;
@@ -201,11 +228,30 @@ public:
             toneL = flushDenormal (toneL + (wetL - toneL) * toneCoeff);
             toneR = flushDenormal (toneR + (wetR - toneR) * toneCoeff);
 
+            const float dryGain = 1.0f - 0.28f * smoothedAmount;
+            const float wetGain = 0.67f * smoothedAmount;
+
             left[i] = inL * dryGain + toneL * wetGain;
             right[i] = inR * dryGain + toneR * wetGain;
 
+            blockPeak = std::max (blockPeak, std::max (std::abs (toneL), std::abs (toneR)));
+
             if (++write >= bufferSize)
                 write = 0;
+        }
+
+        tailPeak = blockPeak;
+
+        if (target <= 1.0e-4f && smoothedAmount < 1.0e-4f && tailPeak < 1.0e-6f)
+        {
+            std::fill (bufferL.begin(), bufferL.end(), 0.0f);
+            std::fill (bufferR.begin(), bufferR.end(), 0.0f);
+            feedbackL = feedbackR = 0.0f;
+            feedbackHighpassL = feedbackHighpassR = 0.0f;
+            toneL = toneR = 0.0f;
+            lowL = lowR = 0.0f;
+            smoothedAmount = 0.0f;
+            cold = true;
         }
     }
 
@@ -246,6 +292,11 @@ private:
     float toneL = 0.0f, toneR = 0.0f;
     float lowL = 0.0f, lowR = 0.0f;
     float feedbackHighpassCoeff = 1.0f, toneCoeff = 1.0f, lowShelfCoeff = 1.0f;
+    float amountCoeff = 0.001f;
+    float smoothedAmount = 0.0f;
+    float tailPeak = 0.0f;
+    bool cold = true;
+    const Wavetables* tables = nullptr;
 };
 
 //==============================================================================
@@ -256,8 +307,9 @@ private:
 class PlateReverb
 {
 public:
-    void prepare (double newSampleRate)
+    void prepare (double newSampleRate, const Wavetables& sharedTables)
     {
+        tables = &sharedTables;
         sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;
         const double scale = sampleRate / 44100.0;
 
@@ -284,6 +336,7 @@ public:
         preDelayR.assign ((int) (sampleRate * 0.038) + 4, 0.0f);
         preDelaySamplesL = std::max (1, (int) (sampleRate * 0.021));
         preDelaySamplesR = std::max (1, (int) (sampleRate * 0.029));
+        mixCoeff = 1.0f - std::exp (-1.0f / (0.020f * (float) sampleRate));
 
         reset();
     }
@@ -300,24 +353,37 @@ public:
         modPhase1 = modPhase2 = 0.0f;
         wetHighpassL = wetHighpassR = 0.0f;
         wetLowpassL = wetLowpassR = 0.0f;
+        smoothedMix = 0.0f;
+        tailPeak = 0.0f;
+        cold = true;
     }
 
     void process (float* left, float* right, int numSamples, float mix)
     {
-        if (mix <= 0.0005f)
+        const float target = clampf (mix, 0.0f, 1.0f);
+
+        // A frozen tank with stale audio is worse than no reverb: when the mix
+        // has fully faded and the tail is genuinely gone, the buffers have been
+        // cleared, so skipping cannot produce a burst on re-enable.
+        if (cold && target <= 1.0e-4f)
             return;
+
+        if (tables == nullptr)
+            return;
+
+        cold = false;
 
         constexpr float feedback = 0.862f;
         constexpr float damping = 0.23f;
-        const float dryGain = 1.0f - 0.26f * mix;
-        const float wetGain = 0.40f * mix;
         const float hpCoeff = 1.0f - std::exp (-2.0f * kPi * 170.0f / (float) sampleRate);
         const float lpCoeff = 1.0f - std::exp (-2.0f * kPi * 7600.0f / (float) sampleRate);
         const float modInc1 = 0.107f / (float) sampleRate;
         const float modInc2 = 0.163f / (float) sampleRate;
+        float blockPeak = 0.0f;
 
         for (int i = 0; i < numSamples; ++i)
         {
+            smoothedMix += (target - smoothedMix) * mixCoeff;
             int readL = preWriteL - preDelaySamplesL;
             int readR = preWriteR - preDelaySamplesR;
 
@@ -344,8 +410,8 @@ public:
             // Slowly detune the tank. Static comb delays give a metallic ring;
             // a fraction of a millisecond of movement is what makes a plate
             // sound like air rather than a bank of filters.
-            const float modA = std::sin (2.0f * kPi * modPhase1);
-            const float modB = std::sin (2.0f * kPi * modPhase2);
+            const float modA = tables->readSine (modPhase1);
+            const float modB = tables->readSine (modPhase2);
 
             for (int i = 0; i < 6; ++i)
                 wetL += processComb (combL[(size_t) i], inL, feedback, damping,
@@ -375,8 +441,30 @@ public:
             wetLowpassL += (wetL - wetLowpassL) * lpCoeff;
             wetLowpassR += (wetR - wetLowpassR) * lpCoeff;
 
+            const float dryGain = 1.0f - 0.26f * smoothedMix;
+            const float wetGain = 0.40f * smoothedMix;
+
             left[i] = left[i] * dryGain + wetLowpassL * wetGain;
             right[i] = right[i] * dryGain + wetLowpassR * wetGain;
+
+            blockPeak = std::max (blockPeak, std::max (std::abs (wetLowpassL),
+                                                       std::abs (wetLowpassR)));
+        }
+
+        tailPeak = blockPeak;
+
+        if (target <= 1.0e-4f && smoothedMix < 1.0e-4f && tailPeak < 1.0e-6f)
+        {
+            for (auto& c : combL) { std::fill (c.buffer.begin(), c.buffer.end(), 0.0f); c.store = 0.0f; }
+            for (auto& c : combR) { std::fill (c.buffer.begin(), c.buffer.end(), 0.0f); c.store = 0.0f; }
+            for (auto& a : allpassL) std::fill (a.buffer.begin(), a.buffer.end(), 0.0f);
+            for (auto& a : allpassR) std::fill (a.buffer.begin(), a.buffer.end(), 0.0f);
+            std::fill (preDelayL.begin(), preDelayL.end(), 0.0f);
+            std::fill (preDelayR.begin(), preDelayR.end(), 0.0f);
+            wetHighpassL = wetHighpassR = 0.0f;
+            wetLowpassL = wetLowpassR = 0.0f;
+            smoothedMix = 0.0f;
+            cold = true;
         }
     }
 
@@ -446,6 +534,11 @@ private:
     float modPhase1 = 0.0f, modPhase2 = 0.0f;
     float wetHighpassL = 0.0f, wetHighpassR = 0.0f;
     float wetLowpassL = 0.0f, wetLowpassR = 0.0f;
+    float mixCoeff = 0.001f;
+    float smoothedMix = 0.0f;
+    float tailPeak = 0.0f;
+    bool cold = true;
+    const Wavetables* tables = nullptr;
 };
 
 //==============================================================================
@@ -454,9 +547,15 @@ private:
     A voice owns two of these in parallel. */
 struct Layer
 {
-    void prepare (double newSampleRate)
+    void prepare (double newSampleRate, const Wavetables& tables)
     {
         sampleRate = newSampleRate;
+        const double voiceRate = sampleRate * 2.0;
+        oscillatorTables = &tables;
+        osc1.prepare (tables, voiceRate);
+        osc2.prepare (tables, voiceRate);
+        subOsc.prepare (tables, voiceRate);
+        sineOsc.prepare (tables, voiceRate);
         osc1.reset (0.0);
         osc2.reset (0.33);
         subOsc.reset (0.17);
@@ -466,14 +565,20 @@ struct Layer
         hpf.reset();
         lpf.reset();
         driveAdaa.reset();
+        vcaAdaa.reset();
+        decimator.prepare();
         decimator.reset();
         cutoffSmooth = 1400.0f;
         lastOutput = 0.0f;
         declickCorrection = 0.0f;
-        declickRemaining = 0;
+        declickRemaining = kDeclickSamples;
         declickPending = false;
         ringPhase = 0.0;
         noiseState = 0x12345678u;
+
+        for (int i = 0; i < kDeclickSamples; ++i)
+            declickCurve[(size_t) i] = 0.5f + 0.5f * std::cos (kPi * (float) i
+                                                              / (float) (kDeclickSamples - 1));
     }
 
     void kill()
@@ -483,10 +588,11 @@ struct Layer
         hpf.reset();
         lpf.reset();
         driveAdaa.reset();
+        vcaAdaa.reset();
         decimator.reset();
         lastOutput = 0.0f;
         declickCorrection = 0.0f;
-        declickRemaining = 0;
+        declickRemaining = kDeclickSamples;
         declickPending = false;
     }
 
@@ -504,15 +610,18 @@ struct Layer
     }
 
     double sampleRate = 48000.0;
-    Oscillator osc1, osc2, subOsc, sineOsc;
+    const Wavetables* oscillatorTables = nullptr;
+    BandlimitedOscillator osc1, osc2, subOsc, sineOsc;
     Envelope ampEnv, filterEnv;
     SVF hpf, lpf;
     SoftClipAdaa driveAdaa;
+    WarmSatAdaa vcaAdaa;
     Decimator2x decimator;
+    std::array<float, kDeclickSamples> declickCurve {};
     float cutoffSmooth = 1400.0f;
     float lastOutput = 0.0f;
     float declickCorrection = 0.0f;
-    int declickRemaining = 0;
+    int declickRemaining = kDeclickSamples;
     bool declickPending = false;
     double ringPhase = 0.0;
     uint32_t noiseState = 0x12345678u;
@@ -521,12 +630,12 @@ struct Layer
 //==============================================================================
 struct Voice
 {
-    void prepare (double newSampleRate)
+    void prepare (double newSampleRate, const Wavetables& tables)
     {
         sampleRate = newSampleRate;
 
         for (auto& layer : layers)
-            layer.prepare (sampleRate);
+            layer.prepare (sampleRate, tables);
 
         active = false;
         released = false;
@@ -602,6 +711,7 @@ struct Voice
                 layer.hpf.reset();
                 layer.lpf.reset();
                 layer.driveAdaa.reset();
+                layer.vcaAdaa.reset();
                 layer.decimator.reset();
                 layer.cutoffSmooth = p.lpfCutoff;
                 layer.ringPhase = (double) nextRandom01();
@@ -873,7 +983,7 @@ struct Voice
             const float glidePitchLocal = glidePitchBlocks[start / kControlBlock];
             const float twangSemis = twangBlocks[start / kControlBlock];
 
-            const float lfo = lfoWaveform (p.lfoWave, lfoPhase);
+            const float lfo = lfoWaveform (p.lfoWave, lfoPhase, *layer.oscillatorTables);
             lfoPhase += mod.lfoRate * (float) n / (float) sampleRate;
 
             if (lfoPhase >= 1.0f)
@@ -940,6 +1050,16 @@ struct Voice
 
             const float tremolo = 1.0f - p.lfoAmp * mod.lfoFade * (0.5f - 0.5f * lfo);
 
+        // Only spend table reads on signals that actually reach the mix. The
+        // phases keep running so no oscillator is frozen, but a patch with the
+        // sub and sine bypassed costs nothing for them.
+        const bool needSaw = p.vco1Level > 1.0e-4f || p.ring > 1.0e-4f;
+        const bool needPulse = p.vco2Level > 1.0e-4f || p.ring > 1.0e-4f;
+        const bool needSub = p.vco1Sub > 1.0e-4f;
+        const bool needSine = p.sineLevel > 1.0e-4f;
+        const bool needNoise = p.noise > 1.0e-4f;
+        const bool needRing = p.ring > 1.0e-4f;
+
             for (int j = 0; j < n; ++j)
             {
                 const float amp = layer.ampEnv.process();
@@ -949,19 +1069,43 @@ struct Voice
 
                 for (int os = 0; os < 2; ++os)
                 {
-                    const float saw = layer.osc1.saw();
-                    const float pulse = layer.osc2.pulse (pulseWidth);
-                    const float sub = layer.subOsc.sub();
-                    const float sine = layer.sineOsc.sine();
-                    const float noise = layer.nextNoise();
+                    float saw = 0.0f, pulse = 0.0f, sub = 0.0f, sine = 0.0f, noise = 0.0f;
 
-                    const float carrier = std::sin (2.0f * kPi * (float) layer.ringPhase);
-                    layer.ringPhase += ringIncrement;
+                    if (needSaw)
+                        saw = layer.osc1.saw();
+                    else
+                        layer.osc1.advanceOnly();
 
-                    while (layer.ringPhase >= 1.0)
-                        layer.ringPhase -= 1.0;
+                    if (needPulse)
+                        pulse = layer.osc2.pulse (pulseWidth);
+                    else
+                        layer.osc2.advanceOnly();
 
-                    const float ringSignal = saw * (0.72f * carrier + 0.28f * pulse);
+                    if (needSub)
+                        sub = layer.subOsc.sub();
+                    else
+                        layer.subOsc.advanceOnly();
+
+                    if (needSine)
+                        sine = layer.sineOsc.sine();
+                    else
+                        layer.sineOsc.advanceOnly();
+
+                    if (needNoise)
+                        noise = layer.nextNoise();
+
+                    float carrier = 0.0f;
+
+                    if (needRing)
+                    {
+                        carrier = layer.oscillatorTables->readSine ((float) layer.ringPhase);
+                        layer.ringPhase += ringIncrement;
+
+                        while (layer.ringPhase >= 1.0)
+                            layer.ringPhase -= 1.0;
+                    }
+
+                    const float ringSignal = needRing ? saw * (0.72f * carrier + 0.28f * pulse) : 0.0f;
 
                     float raw = 0.50f * (saw * p.vco1Level
                                          + pulse * p.vco2Level
@@ -984,7 +1128,7 @@ struct Voice
                     // filter can thin and vowel the tone while the sine keeps
                     // the note solid underneath it.
                     const float mixed = filtered + sine * p.sineLevel * 0.85f;
-                    const float warmed = fastTanh (mixed * 1.16f) * (1.0f / 1.16f);
+                    const float warmed = layer.vcaAdaa.process (mixed * 1.16f) * (1.0f / 1.16f);
 
                     const float value = warmed * amp * layerAmp * tremolo * vintageLevel;
 
@@ -1001,14 +1145,18 @@ struct Voice
                 if (layer.declickPending)
                 {
                     layer.declickCorrection = layer.lastOutput - value;
-                    layer.declickRemaining = 32;
+                    layer.declickRemaining = 0;
                     layer.declickPending = false;
                 }
 
-                if (layer.declickRemaining > 0)
+                if (layer.declickRemaining < kDeclickSamples)
                 {
-                    value += layer.declickCorrection * ((float) layer.declickRemaining / 32.0f);
-                    --layer.declickRemaining;
+                    // Raised cosine: gain 1 on the first sample (so the new
+                    // waveform continues exactly from the old one) and exactly
+                    // 0 on the last, with zero slope at both ends.
+                    value += layer.declickCorrection
+                           * layer.declickCurve[(size_t) layer.declickRemaining];
+                    ++layer.declickRemaining;
                 }
 
                 layer.lastOutput = value;
@@ -1048,8 +1196,10 @@ struct Engine::Impl
     bool prepared = false;
     Params params;
     std::array<Voice, kNumVoices> voices;
+    Wavetables wavetables;
     Chorus chorus;
     PlateReverb reverb;
+    WarmSatAdaa outputSatL, outputSatR;
 
     std::array<std::atomic<float>, kNumVoices> activity {};
     std::atomic<float> meterL { 0.0f }, meterR { 0.0f };
@@ -1094,10 +1244,12 @@ struct Engine::Impl
     void reset()
     {
         for (auto& v : voices)
-            v.prepare (sampleRate);
+            v.prepare (sampleRate, wavetables);
 
-        chorus.prepare (sampleRate);
-        reverb.prepare (sampleRate);
+        chorus.prepare (sampleRate, wavetables);
+        reverb.prepare (sampleRate, wavetables);
+        outputSatL.reset();
+        outputSatR.reset();
 
         bendSmoothed = bendTarget;
         ribbonSmoothed = ribbonTarget;
@@ -1300,8 +1452,8 @@ struct Engine::Impl
             analogLowR += (r - analogLowR) * analogLowCoeff;
             l += analogLowL * 0.09f;
             r += analogLowR * 0.09f;
-            l = fastTanh (l * 1.045f + 0.014f * l * l) * (1.0f / 1.045f);
-            r = fastTanh (r * 1.045f + 0.014f * r * r) * (1.0f / 1.045f);
+            l = outputSatL.process (l * 1.045f + 0.014f * l * l) * (1.0f / 1.045f);
+            r = outputSatR.process (r * 1.045f + 0.014f * r * r) * (1.0f / 1.045f);
 
             const float dcL = l - dcX1L + 0.9985f * dcY1L;
             dcX1L = l;
@@ -1367,11 +1519,9 @@ void Engine::prepare (double sampleRate)
     impl->sampleRate = sampleRate;
     impl->prepared = true;
 
-    for (auto& v : impl->voices)
-        v.prepare (sampleRate);
-
-    impl->chorus.prepare (sampleRate);
-    impl->reverb.prepare (sampleRate);
+    // Table construction is deliberately outside the audio callback: the
+    // wavetables and the decimator coefficients are built here, once.
+    impl->wavetables.prepare (sampleRate);
     impl->reset();
 }
 
@@ -1382,6 +1532,26 @@ void Engine::reset()
 
 double Engine::sampleRate() const { return impl->sampleRate; }
 bool Engine::isPrepared() const { return impl->prepared; }
+
+int Engine::latencySamples() noexcept { return Decimator2x::latencyHostSamples(); }
+double Engine::oversamplingFactor() noexcept { return 2.0; }
+
+int Engine::voiceNote (int index) const
+{
+    if (index < 0 || index >= kNumVoices)
+        return -1;
+
+    const auto& voice = impl->voices[(size_t) index];
+    return voice.active ? voice.note : -1;
+}
+
+bool Engine::voiceIsActive (int index) const
+{
+    if (index < 0 || index >= kNumVoices)
+        return false;
+
+    return impl->voices[(size_t) index].active;
+}
 
 void Engine::setParams (const Params& newParams)
 {

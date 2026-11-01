@@ -92,6 +92,59 @@ private:
 };
 
 //==============================================================================
+/** Normalised cubic saturator with a first-order antiderivative correction.
+
+    f(x) = x - (4/27)x^3 for |x| <= 1.5, flat at +/-1 beyond. The curve has a
+    continuous first derivative, reaches exactly 1.0 at x = 1.5 with zero slope,
+    and f'(0) = 1, so it is level-matched to the previous tanh stage at normal
+    amplitudes while generating far less alias energy than a naive shaper. */
+inline float warmShape (float x) noexcept
+{
+    x = clampf (x, -1.5f, 1.5f);
+    return x - (4.0f / 27.0f) * x * x * x;
+}
+
+/** Antiderivative of warmShape(). Even, so |x| is enough. */
+inline float warmShapeIntegral (float x) noexcept
+{
+    const float ax = std::abs (x);
+
+    if (ax <= 1.5f)
+    {
+        const float x2 = x * x;
+        return 0.5f * x2 - (1.0f / 27.0f) * x2 * x2;
+    }
+
+    return 0.9375f + (ax - 1.5f);
+}
+
+struct WarmSatAdaa
+{
+    void reset() noexcept
+    {
+        previousInput = 0.0f;
+        previousIntegral = 0.0f;
+    }
+
+    float process (float x) noexcept
+    {
+        const float integral = warmShapeIntegral (x);
+        const float delta = x - previousInput;
+        const float out = std::abs (delta) > 1.0e-5f
+                            ? (integral - previousIntegral) / delta
+                            : warmShape (x);
+
+        previousInput = x;
+        previousIntegral = integral;
+        return out;
+    }
+
+private:
+    float previousInput = 0.0f;
+    float previousIntegral = 0.0f;
+};
+
+//==============================================================================
 /** 2x decimator for the voice's nonlinear path.
 
     The oscillators, filters and saturation now run at twice the host rate so
@@ -105,10 +158,43 @@ struct Decimator2x
     static constexpr int kTaps = 33;
     static constexpr int kCenter = kTaps / 2;
 
+    /** Linear-phase group delay of the half-band FIR, converted from the 2x
+        rate back to host samples. */
+    static constexpr int latencyHostSamples() noexcept { return (kTaps - 1) / 4; }
+
     void reset() noexcept
     {
         history.fill (0.0f);
         index = 0;
+
+        if (! prepared)
+            prepare();
+    }
+
+    /** Build the FIR table outside the audio callback. */
+    void prepare() noexcept
+    {
+        float sum = 0.0f;
+
+        for (int i = 0; i < kTaps; ++i)
+        {
+            const float n = (float) (i - kCenter);
+            const float sinc = std::abs (n) < 1.0e-6f
+                                 ? 0.5f
+                                 : 0.5f * std::sin (kPi * 0.5f * n) / (kPi * 0.5f * n);
+            const float w = 0.42f
+                          - 0.5f * std::cos (2.0f * kPi * (float) i / (float) (kTaps - 1))
+                          + 0.08f * std::cos (4.0f * kPi * (float) i / (float) (kTaps - 1));
+
+            h[(size_t) i] = sinc * w;
+            sum += h[(size_t) i];
+        }
+
+        if (std::abs (sum) > 1.0e-6f)
+            for (auto& c : h)
+                c /= sum;
+
+        prepared = true;
     }
 
     /** Feed the odd (interpolated-rate) sample. It is needed by the next filter
@@ -125,7 +211,6 @@ struct Decimator2x
         index = (index + 1 == kTaps) ? 0 : index + 1;
         history[(size_t) index] = sample;
 
-        const auto& h = coefficients();
         float sum = 0.0f;
         int pos = index;
 
@@ -141,39 +226,10 @@ struct Decimator2x
     }
 
 private:
-    static const std::array<float, kTaps>& coefficients()
-    {
-        static const auto table = []
-        {
-            std::array<float, kTaps> h {};
-            float sum = 0.0f;
-
-            for (int i = 0; i < kTaps; ++i)
-            {
-                const float n = (float) (i - kCenter);
-                const float sinc = std::abs (n) < 1.0e-6f
-                                     ? 0.5f
-                                     : 0.5f * std::sin (kPi * 0.5f * n) / (kPi * 0.5f * n);
-                const float w = 0.42f
-                              - 0.5f * std::cos (2.0f * kPi * (float) i / (float) (kTaps - 1))
-                              + 0.08f * std::cos (4.0f * kPi * (float) i / (float) (kTaps - 1));
-
-                h[(size_t) i] = sinc * w;
-                sum += h[(size_t) i];
-            }
-
-            if (std::abs (sum) > 1.0e-6f)
-                for (auto& c : h)
-                    c /= sum;
-
-            return h;
-        }();
-
-        return table;
-    }
-
     std::array<float, kTaps> history {};
+    std::array<float, kTaps> h {};
     int index = 0;
+    bool prepared = false;
 };
 
 //==============================================================================
