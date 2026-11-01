@@ -34,6 +34,87 @@ jobs:
       - name: Run tests
         run: ctest --test-dir build-tests -C Release --output-on-failure
 
+  version-check:
+    name: Version and tag consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check VERSION, CMake and tag agree
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          test -n "$version"
+          grep -q "project(CS80E VERSION ${version} " CMakeLists.txt
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            test "v${version}" = "${GITHUB_REF_NAME}"
+          fi
+          echo "Version ${version} is consistent."
+
+  analysis:
+    name: Benchmarks and spectral analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-analysis
+          -DCMAKE_BUILD_TYPE=Release
+          -DCS80_BUILD_PLUGIN=OFF
+          -DCS80_BUILD_TOOLS=OFF
+
+      - name: Build engine, tests and analysis tool
+        run: cmake --build build-analysis --config Release --parallel 2
+
+      - name: Run DSP tests
+        run: ctest --test-dir build-analysis -C Release --output-on-failure
+
+      - name: CPU benchmark
+        run: ./build-analysis/tools/analysis/cs80_analysis bench | tee benchmark.txt
+
+      - name: Aliasing analysis
+        run: ./build-analysis/tools/analysis/cs80_analysis alias | tee aliasing.txt
+
+      - name: Latency analysis
+        run: ./build-analysis/tools/analysis/cs80_analysis latency | tee latency.txt
+
+      - name: Upload analysis logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: CS-80E-analysis
+          path: |
+            benchmark.txt
+            aliasing.txt
+            latency.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  sanitizers:
+    name: AddressSanitizer + UndefinedBehaviorSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure with sanitizers
+        run: >
+          cmake -S . -B build-san
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCS80_BUILD_PLUGIN=OFF
+          -DCS80_BUILD_TOOLS=OFF
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build-san --config Debug --parallel 2
+
+      - name: Run tests under ASan and UBSan
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-san -C Debug --output-on-failure
+
   build:
     name: Build (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
@@ -316,7 +397,7 @@ jobs:
   publish-latest:
     name: Refresh latest downloads
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    needs: [build, screenshots, pluginval, pluginval-windows]
+    needs: [version-check, dsp-tests, analysis, sanitizers, build, screenshots, pluginval, pluginval-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -473,7 +554,7 @@ jobs:
   release:
     name: Attach builds to tag release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, screenshots, pluginval, pluginval-windows]
+    needs: [version-check, dsp-tests, analysis, sanitizers, build, screenshots, pluginval, pluginval-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

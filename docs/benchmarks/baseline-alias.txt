@@ -1,0 +1,38 @@
+CS-80E aliasing analysis
+========================
+Single sustained note, 2 s settle, 65536-sample Blackman-Harris FFT.
+Values are dB relative to the fundamental amplitude.
+
+### 44.1 kHz
+
+| Patch | Note | Worst alias | Alias energy | Noise floor | Worst alias Hz |
+| --- | --- | --- | --- | --- | --- |
+| saw-low | 36 | -61.0 dB | -45.6 dB | -144.9 dB | 22042 |
+| saw-high | 84 | -41.2 dB | -36.3 dB | -153.6 dB | 21077 |
+| pulse-narrow | 60 | -32.8 dB | -23.6 dB | -135.0 dB | 21862 |
+| resonant-drive | 60 | -60.5 dB | -44.5 dB | -153.1 dB | 7358 |
+| ring-mod | 57 | -15.0 dB | -7.4 dB | -156.3 dB | 840 |
+| max-brightness | 72 | -39.4 dB | -31.4 dB | -143.2 dB | 21077 |
+
+### 48.0 kHz
+
+| Patch | Note | Worst alias | Alias energy | Noise floor | Worst alias Hz |
+| --- | --- | --- | --- | --- | --- |
+| saw-low | 36 | -61.7 dB | -46.5 dB | -141.1 dB | 23930 |
+| saw-high | 84 | -38.4 dB | -33.2 dB | -154.5 dB | 23930 |
+| pulse-narrow | 60 | -38.0 dB | -28.7 dB | -130.1 dB | 23930 |
+| resonant-drive | 60 | -62.6 dB | -46.2 dB | -152.7 dB | 7309 |
+| ring-mod | 57 | -14.2 dB | -6.9 dB | -153.3 dB | 840 |
+| max-brightness | 72 | -38.0 dB | -30.9 dB | -143.3 dB | 23930 |
+
+### 96.0 kHz
+
+| Patch | Note | Worst alias | Alias energy | Noise floor | Worst alias Hz |
+| --- | --- | --- | --- | --- | --- |
+| saw-low | 36 | -66.7 dB | -48.6 dB | -135.1 dB | 47943 |
+| saw-high | 84 | -44.0 dB | -36.6 dB | -151.5 dB | 47861 |
+| pulse-narrow | 60 | -38.3 dB | -27.6 dB | -129.4 dB | 47861 |
+| resonant-drive | 60 | -70.9 dB | -52.8 dB | -156.7 dB | 7292 |
+| ring-mod | 57 | -14.8 dB | -7.2 dB | -125.2 dB | 400 |
+| max-brightness | 72 | -46.0 dB | -34.6 dB | -141.0 dB | 45768 |
+

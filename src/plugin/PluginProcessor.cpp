@@ -68,7 +68,12 @@ void Cs80AudioProcessor::prepareToPlay (double sampleRate, int)
     engine.prepare (sampleRate);
     engine.setParams (snapshotParams());
     keyboardState.reset();
-    setLatencySamples (0);
+
+    // The voice path runs oversampled and returns through a linear-phase
+    // half-band decimator. Report that delay to the host so offline bounces,
+    // PDC and automation land on the same timeline as everything else. The
+    // value is derived from the topology, not hard-coded here.
+    setLatencySamples (Engine::latencySamples());
 }
 
 void Cs80AudioProcessor::releaseResources()
@@ -300,6 +305,18 @@ void Cs80AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("presetIndex", currentPresetIndex(), nullptr);
+    state.setProperty ("stateVersion", 2, nullptr);
+
+    // Store the baseline the preset was loaded from. Without it a project that
+    // was saved with a tweaked factory patch would look unmodified when it was
+    // reopened, because the only remaining reference was the live parameters.
+    juce::ValueTree baseline ("CS80E_PRESET_BASELINE");
+
+    for (const auto& spec : paramSpecs())
+        baseline.setProperty (spec.id, getParam (presetParams, spec.id), nullptr);
+
+    state.removeChild (state.getChildWithName (baseline.getType()), nullptr);
+    state.addChild (baseline, -1, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -314,10 +331,30 @@ void Cs80AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 
     auto state = juce::ValueTree::fromXml (*xml);
     const int index = (int) state.getProperty ("presetIndex", 0);
+    const auto& presets = factoryPresets();
 
     apvts.replaceState (state);
-    presetIndex.store (juce::jlimit (0, (int) factoryPresets().size() - 1, index),
+    presetIndex.store (presets.empty() ? 0 : juce::jlimit (0, (int) presets.size() - 1, index),
                        std::memory_order_relaxed);
-    presetParams = snapshotParams();
+
+    if (auto baseline = state.getChildWithName ("CS80E_PRESET_BASELINE"); baseline.isValid())
+    {
+        presetParams = defaultParams();
+
+        for (const auto& spec : paramSpecs())
+            setParam (presetParams, spec.id,
+                      (float) (double) baseline.getProperty (spec.id,
+                                                             getParam (presetParams, spec.id)));
+    }
+    else
+    {
+        // States written before the baseline existed: reconstruct the factory
+        // patch for the saved program, which is the closest available truth.
+        presetParams = defaultParams();
+
+        const int savedIndex = currentPresetIndex();
+        if (savedIndex >= 0 && savedIndex < (int) presets.size())
+            applyPreset (presetParams, presets[(size_t) savedIndex]);
+    }
 }
 } // namespace cs80

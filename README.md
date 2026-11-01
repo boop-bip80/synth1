@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/boop-bip80/synth1?label=latest&color=ff9d3c)](https://github.com/boop-bip80/synth1/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-3%2C928-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-4%2C007-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E dual-channel panel">
@@ -19,15 +19,18 @@ a dedicated ring carrier, a resonant high-pass into a resonant low-pass, the
 CS-80's two-level filter envelope, polyphonic aftertouch, polyphonic portamento
 and a spring-loaded pitch ribbon.
 
-Version 5.0 is the deepest rebuild yet. The entire voice path now runs at twice
-the host sample rate and returns through a 33-tap half-band decimator, so the
-filter's saturation, the drive stage and the VCA curve generate their harmonics
-above Nyquist instead of folding them back as digital fizz. A new Filter EG
-Depth control scales the CS-80's famously deep envelope sweep. The ensemble is
-a five-tap BBD with cubic delay reads, the voice field spreads evenly across the
-stereo image instead of alternating hard left and right, and a fixed output
-transformer adds low-end weight and a touch of second-harmonic colour. The
-factory bank has grown to 36 patches.
+Version 5.1 is a DSP validation and reliability release, not a cosmetic one.
+The PolyBLEP oscillators were replaced with quarter-octave band-limited
+wavetable mip maps; measured worst-case aliasing dropped from −38 dB to −66 dB
+at 48 kHz, and a high saw improved from −38 dB to −79 dB. The plugin now
+reports its real 8-sample processing latency instead of zero. Chorus and reverb
+no longer freeze their delay lines and replay stale audio when the mix returns,
+and the audio callback performs no heap allocation. Eight voices with both
+channels and both effects measure 14.2 % of one core at 48 kHz / 256 frames
+(0.142× real time) on the documented reference machine. Every claim in this
+README has a committed measurement or test behind it; see
+[docs/DSP_VALIDATION.md](docs/DSP_VALIDATION.md) and
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 The entire panel was repainted in code again — black lacquer and cold steel,
 figured walnut cheeks, brass rails, ten jewel-toned sections, a chrome badge,
@@ -38,7 +41,11 @@ No bitmap skin, no external editor dependency.
 
 ## Download the builds
 
-The links below always point at the newest successful build on `main`:
+**Current version: 5.1.0.** The links below resolve to the rolling `latest`
+release, which CI refreshes from `main` only after every gated job passes. A
+versioned `v5.1.0` release requires pushing the tag; that publication step is
+documented in [docs/QUALITY_REMEDIATION.md](docs/QUALITY_REMEDIATION.md) and is
+not claimed here until the assets verification has run.
 
 | Platform | Download | Formats |
 | --- | --- | --- |
@@ -103,35 +110,39 @@ latest release.
 Brass chords and aftertouch swells, rendered offline through the real processor
 by the screenshot tool.
 
-## What is new in 5.0
+## What is new in 5.1
 
-- **A 2× oversampled voice path.** Oscillators, high-pass, low-pass, drive and
-  the VCA curve now run at twice the host rate into a 33-tap half-band
-  decimator. The top end stays silky and open even with high resonance and
-  heavy drive, without the brittle aliasing that gives soft synths away.
-- **Filter EG Depth.** The CS-80's envelope sweep is now a calibrated control,
-  from a subtle movement to the full, vocal, multi-octave plunge. It is the
-  seventh fader in the filter-envelope row and it is saved with the patch.
-- **A wider, deeper stereo field.** Voices are distributed across the image in
-  allocation order and glide to their new position, the two channel cards
-  cross-pan, and the five-tap BBD ensemble uses cubic delay reads for a
-  smoother, less granular halo.
-- **An analog output transformer.** A fixed low-shelf and asymmetric
-  second-harmonic stage adds weight and iron before the transparent limiter.
-- **A 36-patch bank.** Empire Brass, Solaris Pad, Fifth Element and Chrome
-  Strings join the 32 rebuilt classics.
-- **A completely repainted panel:** black lacquer and cold steel, figured walnut
-  cheeks, brass edge trim, ten jewel-toned sections with engraved watermarks,
-  a larger chrome badge, a richer LCD, a category-filtered library with chips,
-  twin voice-card lamps and a glossier 61-key poly-touch keybed.
-- **Release automation:** stable per-OS download links, versioned `latest.json`,
-  screenshot URLs, checksums, ten refreshed renders and a rolling latest
-  release, all driven by GitHub Actions.
+- **Band-limited wavetable oscillators.** Quarter-octave mip maps are built
+  additively at prepare time with every harmonic below 45 % of the host rate.
+  A pulse is the difference of two band-limited saw reads, so narrow PWM is
+  band-limited by construction. Worst-case measured alias components: −71 dB for
+  a 5 % pulse, −79 dB for a high saw, −66 dB for a maximum-brightness patch.
+- **Correct latency reporting.** The 33-tap half-band decimator adds 8 host
+  samples of group delay; the plugin now reports exactly that to the host, so
+  PDC and offline bounces line up. The value is derived from the filter
+  topology, not typed in by hand.
+- **Effects that cannot replay stale audio.** Chorus and reverb smooth their
+  wet/dry gains per sample, keep processing through a real tail, and clear their
+  buffers once the tail is gone. Re-enabling after silence measures 0.000000
+  peak instead of a burst.
+- **A real voice-stealing test.** Eight held voices plus a ninth now genuinely
+  force the steal path, with coverage for attack, decay, sustain, release, the
+  sustain pedal, dual layers, high resonance/drive, poly pressure and 500 rapid
+  retriggers. The hand-over is a 64-sample raised cosine.
+- **No allocations in the callback.** FIR coefficients and wavetables are built
+  in `prepare()`. The suite counts allocations over 400 callbacks with MIDI and
+  parameter changes: zero.
+- **Committed measurements.** `docs/benchmarks/` holds raw before/after runs;
+  `docs/DSP_VALIDATION.md` documents the method, the numbers and the parts that
+  are still unverified.
+- **Honest UI pass.** Sub-8 px legends were lifted and secondary contrast
+  increased. A full responsive re-layout is still open and is not claimed.
 
 ## What is inside
 
-- **Eight-voice polyphony** with click-free oldest-voice stealing, a short
-  declick handover and sustain-pedal handling.
+- **Eight-voice polyphony** with oldest-voice stealing, a 64-sample raised
+  cosine hand-over, sustain-pedal handling and explicit note ownership, so a
+  note-off for a stolen note cannot release its replacement.
 - **Dual channel cards** with independent level, octave, detune, pulse width,
   cutoff offset, resonance, envelope scale and pan.
 - **Single / Dual / Split** channel modes, with a 36–96 split point.
@@ -140,11 +151,12 @@ by the screenshot tool.
   stacked chords breathe instead of phase-locking into one giant comb filter.
 - **2× oversampled voice path:** the oscillators, both filters, the drive stage
   and the VCA curve run at twice the host rate into a 33-tap half-band
-  decimator, so their harmonics stay above Nyquist instead of folding back into
-  the audible band. The top end stays open even at high resonance and drive.
-- **VCO 1:** band-limited polyBLEP saw, sub-octave square, ±2 octave switch,
+  decimator. That path adds exactly 8 host samples of latency, which is
+  reported to the host. The oscillator tables themselves are limited to 45 % of
+  the host rate so nothing above Nyquist reaches the decimator's transition band.
+- **VCO 1:** band-limited wavetable saw, sub-octave square, ±2 octave switch,
   detune.
-- **VCO 2:** band-limited polyBLEP pulse with DC-correct PWM, ±2 octave switch,
+- **VCO 2:** band-limited wavetable pulse with DC-correct PWM, ±2 octave switch,
   detune.
 - **Dedicated ring carrier** (VCO × sine) with speed control, plus a noise
   source.
@@ -166,10 +178,16 @@ by the screenshot tool.
 - **Expression:** channel and polyphonic aftertouch, mod wheel, pitch bend, a
   spring-loaded ribbon (±12 semitones) and a 61-key poly-touch keybed.
 - **Five-tap BBD ensemble** with cubic delay reads, a stereo-pre-delayed plate
-  reverb, a brilliance tilt and a fixed analog output transformer.
+  reverb, a brilliance tilt and a fixed output transformer. Both effects have
+  per-sample wet/dry smoothing, real tails and a clean cold-start, so automating
+  them cannot replay stale audio.
 - **36 factory patches**, a category-filtered four-column preset library,
-  tooltips and double-click parameter reset.
+  tooltips and double-click parameter reset. The preset baseline is stored with
+  the project state, so a tweaked factory patch still reads as edited after the
+  project is reopened.
 - **Resizable UI** that keeps its hardware proportions from 1080×720 upward.
+  Small legends were raised and secondary contrast improved in 5.1; a second
+  compact layout is still on the open list.
 
 ### The panel
 
@@ -193,10 +211,13 @@ by the screenshot tool.
 | Job | What it proves |
 | --- | --- |
 | `dsp-tests` | The engine builds and passes all headless checks without JUCE. |
+| `analysis` | The suite plus `cs80_analysis bench/alias/latency`; logs are uploaded as build evidence. |
+| `sanitizers` | The same suite under AddressSanitizer and UndefinedBehaviorSanitizer. |
+| `version-check` | `VERSION`, the CMake project version and a `v*` tag must agree. |
 | `build` | VST3 + Standalone compile on Linux, macOS and Windows (AU also on macOS); the macOS AU is validated with `auval`; tests pass; zips are downloadable. |
 | `screenshots` | The real editor is rendered offscreen to ten PNGs plus a demo WAV; refreshed renders are committed back to `main`. |
 | `pluginval` | The Linux and Windows VST3 builds are validated by pluginval at strictness level 5. |
-| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and ten previews are attached to the rolling `latest` release only after the build, renders and validation succeed. |
+| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and ten previews are attached to the rolling `latest` release only after the version, test, analysis, sanitizer, build, render and validation jobs succeed. |
 | `verify-latest` | The published rolling assets are downloaded back and checked against `docs/`, `SHA256SUMS.txt` and `latest.json`. |
 | `release` | A `v*` tag publishes a versioned GitHub Release with all platform zips, renders, checksums and a versioned `latest.json`. |
 | `verify-tagged-release` | The same integrity check runs against the versioned release. |
@@ -248,7 +269,8 @@ src/dsp/            Pure C++17 engine — no JUCE, fully unit-testable
   Engine.*            eight dual-channel voices, glide, modulation, ring carrier,
                       ensemble, stereo-pre-delay plate, transparent limiter
   Presets.*           36 factory patches
-  tests/              3,928 headless assertions
+  Oscillator.h        band-limited wavetable mip maps + oscillators
+  tests/              4,007 headless assertions, FFT alias analysis
 
 src/plugin/         JUCE wrapper
   PluginProcessor.*   APVTS, presets, MIDI dispatch, state persistence
@@ -257,9 +279,10 @@ src/plugin/         JUCE wrapper
                       meters, ribbon, 61-key poly-touch keybed and preset browser
 
 tools/screenshot/   Offline editor renderer + demo WAV
-.github/workflows/  Build, test, screenshot, pluginval, latest and release pipeline
+tools/analysis/     CPU, aliasing and latency measurement tool
+.github/workflows/  Build, test, analysis, sanitizer, screenshot, pluginval and release pipeline
 assets/fonts/       Embedded Chakra Petch, JetBrains Mono and Michroma (OFL)
-docs/               Committed screenshots and the demo render
+docs/               Screenshots, demo, validation, benchmarks and the quality register
 ```
 
 Designed boundaries: the engine never includes JUCE, so the full signal path can
@@ -273,21 +296,44 @@ The headless suite covers:
 - parameter table integrity, ranges, defaults and every spec↔struct mapping;
 - preset application, uniqueness and clamping across all 36 patches;
 - silence when idle; finite output at every parameter extreme;
-- 8-voice polyphony, click-free voice stealing with a declick handover;
+- 8-voice polyphony with a ninth note genuinely stealing the oldest voice,
+  across attack/decay/sustain/release, pedal, dual layers, drive and pressure;
+- note-off ownership after a steal, 500 rapid retriggers and repeated pitches;
+- decimator impulse delay (8 host samples), reported latency and unity DC gain;
+- FFT alias gates at 48 kHz for saws, narrow pulse, sub octave and max brightness;
+- direct SVF gain at cutoff, resonance peak, and stability at 44.1–192 kHz, Q 40;
+- envelope attack/decay/release timing measured in samples;
+- chorus/reverb re-enable after silence (no stale burst) and smooth live toggles;
+- zero heap allocations across 400 callbacks with MIDI and parameter changes;
 - dual-channel layering, keyboard splits, layer panning and the ring carrier;
 - sub-oscillator tracking, polyphonic glide, master tune and vintage spread;
 - sine-mix bypass level, initial-bend decay and independent card drift;
 - identical rendering at 32- and 512-sample host block sizes;
-- A4 tuning at 44.1, 48 and 96 kHz, octave switches and 24-semitone bend;
-- filter brightness response, ring/chorus stereo behaviour and reverb decay;
-- high drive/resonance stability, sustain pedal, retriggering, aftertouch/mod
-  wheel and deterministic renders;
+- A4 tuning and repeated prepare at 44.1, 48, 88.2, 96 and 192 kHz;
+- high drive/resonance stability, sustain pedal, aftertouch/mod wheel and
+  deterministic renders;
 - every factory preset rendering with sane peak levels.
 
-CI additionally builds the plugin on three operating systems, validates the
+CI builds the plugin on three operating systems, runs the suite and the
+`cs80_analysis` benchmark/alias/latency tool, runs ASan+UBSan, validates the
 Linux and Windows VST3 builds with pluginval
 (`--strictness-level 5 --skip-gui-tests`), and validates the macOS AU with
-`auval`.
+`auval`. These are automated validators, not a DAW compatibility matrix.
+
+## Known limitations
+
+- No user preset manager (save/rename/import/export/search) in 5.1. Factory
+  presets, DAW state and the edited indicator work; user banks do not exist yet.
+- No modulation matrix, microtuning/`.scl` import, MPE zones or MIDI learn in
+  5.1. Channel pressure, poly pressure, mod wheel, bend and sustain do work.
+- No DAW compatibility matrix has been produced. pluginval and `auval` are
+  automated validators and do not prove compatibility with every host.
+- No comparison against physical CS-80 hardware was performed. The filter and
+  voice are musical approximations, not circuit models.
+- CI builds are unsigned. macOS requires right-click → Open the first time;
+  Windows SmartScreen will warn.
+- The GUI still scales uniformly below its 1440×960 design size instead of
+  switching to a second compact layout.
 
 ## License
 

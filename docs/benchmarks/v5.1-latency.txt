@@ -1,0 +1,33 @@
+CS-80E latency analysis
+=======================
+
+Reported engine latency: 8 host samples (0.167 ms at 48 kHz)
+Oversampled voice path: 2.00x host rate, decimator taps: 33
+
+Decimator impulse response (host-rate indices):
+   0: -0.000000
+   1: -0.000000
+   2:  0.000000
+   3: -0.000000
+   4:  0.000000
+   5: -0.000000
+   6:  0.000000
+   7: -0.000000
+   8:  0.499969
+   9: -0.000000
+  10:  0.000000
+  11: -0.000000
+  12:  0.000000
+  13: -0.000000
+  14:  0.000000
+  15: -0.000000
+  16: -0.000000
+  17:  0.000000
+  18:  0.000000
+  19:  0.000000
+  20:  0.000000
+  21:  0.000000
+  22:  0.000000
+  23:  0.000000
+
+Impulse peak at host sample 8 (amplitude 0.5000); engine reports 8.

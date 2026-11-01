@@ -29,8 +29,8 @@ inline const juce::Colour plateBottom { 0xff04080b };
 inline const juce::Colour line        { 0xff405265 };
 inline const juce::Colour shadow      { 0xff010203 };
 inline const juce::Colour text        { 0xfff7efdf };
-inline const juce::Colour textDim     { 0xffcbbaa0 };
-inline const juce::Colour textFaint   { 0xff8d8273 };
+inline const juce::Colour textDim     { 0xffd8cab4 };
+inline const juce::Colour textFaint   { 0xffa79a87 };
 
 inline const juce::Colour amber       { 0xffffb45f };
 inline const juce::Colour amberHot    { 0xffffe7ba };

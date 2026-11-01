@@ -67,6 +67,13 @@ juce::Typeface::Ptr displayFace()
 
 juce::Font fromTypeface (const juce::Typeface::Ptr& face, float height)
 {
+    // Small legends are deliberately tracked and engraved, but several had
+    // drifted down to five pixels, which is not readable on a laptop at 75%
+    // zoom. Give only the sub-8px range a lift, so the large display type and
+    // section headers keep their proportions and nothing is re-flowed.
+    if (height < 8.0f)
+        height = height * 1.12f + 0.45f;
+
     if (face == nullptr)
         return juce::Font (juce::FontOptions (height));
 
