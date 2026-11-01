@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -44,6 +45,22 @@ void operator delete (void* p, std::size_t) noexcept { std::free (p); }
 void* operator new[] (std::size_t size) { return operator new (size); }
 void operator delete[] (void* p) noexcept { std::free (p); }
 void operator delete[] (void* p, std::size_t) noexcept { std::free (p); }
+
+// The nothrow forms must be replaced alongside the throwing forms. MSVC's
+// CRT keeps them in the same new.obj object; defining only the throwing
+// overloads lets the linker pull that object in and report LNK2005.
+void* operator new (std::size_t size, const std::nothrow_t&) noexcept
+{
+    try { return operator new (size); } catch (...) { return nullptr; }
+}
+
+void* operator new[] (std::size_t size, const std::nothrow_t&) noexcept
+{
+    try { return operator new[] (size); } catch (...) { return nullptr; }
+}
+
+void operator delete (void* p, const std::nothrow_t&) noexcept { std::free (p); }
+void operator delete[] (void* p, const std::nothrow_t&) noexcept { std::free (p); }
 
 namespace
 {

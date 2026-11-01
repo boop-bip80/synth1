@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.22)
 
 project(CS80E VERSION 5.2.0 LANGUAGES C CXX)
 
+if(MSVC)
+    # The editor uses UTF-8 punctuation in its labels. Compile every target as
+    # UTF-8, and keep the object-section limit raised for the large JUCE UI
+    # and test translation units (JUCE already does this for its own modules).
+    add_compile_options(/utf-8 $<$<COMPILE_LANGUAGE:CXX>:/bigobj>)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

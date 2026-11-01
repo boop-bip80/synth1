@@ -2,6 +2,7 @@
 
 #include "PluginEditor.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace cs80

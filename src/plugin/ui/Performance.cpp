@@ -2,6 +2,7 @@
 
 #include "../PluginProcessor.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
