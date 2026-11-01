@@ -53,9 +53,8 @@ release, which CI updates from `main` **only after its gated jobs pass**.
 If a build is still running, the latest download can temporarily be older
 than the source. Check the `version` and `commit` fields in
 [`latest.json`](https://github.com/boop-bip80/synth1/releases/download/latest/latest.json)
-before installing, or use the versioned
-[`v5.3.0` release](https://github.com/boop-bip80/synth1/releases/tag/v5.3.0)
-once its CI publication has completed.
+before installing. A versioned `v5.3.0` release becomes available once the
+`v5.3.0` tag is pushed and its separate release workflow has passed.
 
 | Platform | Download | Formats |
 | --- | --- | --- |
@@ -364,6 +363,10 @@ The headless suite covers:
 - sine-mix bypass level, initial-bend decay and independent card drift;
 - identical rendering at 32- and 512-sample host block sizes;
 - A4 tuning and repeated prepare at 44.1, 48, 88.2, 96 and 192 kHz;
+- Scala absolute pitches, ratios, `.kbm` reference-key mapping, unmapped notes,
+  malformed files and tuning overflow rejection;
+- concurrent microtuning publication during audio rendering and modulation
+  source/destination routing;
 - high drive/resonance stability, sustain pedal, aftertouch/mod wheel and
   deterministic renders;
 - every factory preset rendering with sane peak levels.
@@ -372,14 +375,15 @@ CI builds the plugin on three operating systems, runs the suite and the
 `cs80_analysis` benchmark/alias/latency tool, runs ASan+UBSan, validates the
 Linux and Windows VST3 builds with pluginval
 (`--strictness-level 5 --skip-gui-tests`), and validates the macOS AU with
-`auval`. These are automated validators, not a DAW compatibility matrix.
+`auval`. The screenshot renderer additionally exercises a user-preset save/load
+round-trip that preserves the modulation matrix and Scala tuning. These are
+automated validators, not a DAW compatibility matrix.
 
 ## Known limitations
 
-- No user preset manager (save/rename/import/export/search) in 5.1. Factory
-  presets, DAW state and the edited indicator work; user banks do not exist yet.
-- No modulation matrix, microtuning/`.scl` import, MPE zones or MIDI learn in
-  5.1. Channel pressure, poly pressure, mod wheel, bend and sustain do work.
+- MPE zones and per-note channel pitch/timbre expression are not implemented.
+  Conventional MIDI channel pressure, poly pressure, mod wheel, pitch bend and
+  sustain are supported; MIDI CC learn is not yet implemented.
 - No DAW compatibility matrix has been produced. pluginval and `auval` are
   automated validators and do not prove compatibility with every host.
 - No comparison against physical CS-80 hardware was performed. The filter and
@@ -388,10 +392,9 @@ Linux and Windows VST3 builds with pluginval
   Windows SmartScreen will warn.
 - The GUI still scales uniformly below its 1440×960 design size instead of
   switching to a second compact layout.
-- An eight-slot modulation matrix and Scala `.scl`/`.kbm` microtuning are
-  implemented and tested in the engine, but they have **no panel controls and
-  no plugin-state persistence yet**, so they are not part of the 5.1 release.
-  Do not expect to find them in the UI.
+- The 5.3 Advanced panel exposes the modulation matrix, user-preset manager
+  and Scala tuning, but automated GUI screenshots and platform builds must
+  still pass CI before the new binary can be described as released.
 
 ## License
 

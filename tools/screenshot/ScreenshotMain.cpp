@@ -48,6 +48,55 @@ int presetIndexByName (const juce::String& name)
     return 0;
 }
 
+bool verifyPresetAndTuningRoundTrip()
+{
+    cs80::Cs80AudioProcessor original;
+    original.loadPreset (0);
+
+    juce::String error;
+    const auto scale = juce::String ("CI pentatonic\n5\n200.0\n400.0\n700.0\n900.0\n2/1\n");
+    const auto mapping = juce::String ("5\n0\n127\n60\n60\n261.6255653\n5\n0\n1\n2\n3\n4\n");
+
+    if (! original.loadScalaScale (scale, error)
+        || ! original.loadScalaMapping (mapping, error))
+    {
+        std::fprintf (stderr, "Tuning state setup failed: %s\n", error.toRawUTF8());
+        return false;
+    }
+
+    auto* amount = original.apvts.getParameter (cs80::pid::modAmountIds[0]);
+    if (amount == nullptr)
+        return false;
+    amount->setValueNotifyingHost (amount->convertTo0to1 (0.625f));
+
+    const auto path = juce::File::getSpecialLocation (juce::File::tempDirectory)
+        .getNonexistentChildFile ("cs80e-ci-roundtrip", ".cs80e");
+    const bool saved = original.saveUserPreset (path, error);
+
+    cs80::Cs80AudioProcessor restored;
+    const bool loaded = saved && restored.loadUserPreset (path, error);
+    path.deleteFile();
+
+    if (! loaded)
+    {
+        std::fprintf (stderr, "User preset round-trip failed: %s\n", error.toRawUTF8());
+        return false;
+    }
+
+    const auto* restoredAmount = restored.apvts.getRawParameterValue (cs80::pid::modAmountIds[0]);
+    const auto tuning = restored.getEngine().tuning();
+    const bool verified = restoredAmount != nullptr
+        && std::abs (restoredAmount->load() - 0.625f) < 0.0001f
+        && std::abs (tuning.noteFrequency (61)
+                     - 261.6255653 * std::exp2 (200.0 / 1200.0)) < 0.01
+        && ! tuning.isEqualTemperament()
+        && restored.currentPresetCategory() == "USER";
+
+    std::printf ("  user preset / Scala / mod matrix round-trip: %s\n",
+                 verified ? "PASS" : "FAIL");
+    return verified;
+}
+
 void renderShot (const Shot& shot, const juce::File& directory)
 {
     cs80::Cs80AudioProcessor processor;
@@ -238,6 +287,9 @@ int main (int argc, char** argv)
     audioDir.createDirectory();
 
     std::printf ("CS-80E offline renderer\n");
+
+    if (! verifyPresetAndTuningRoundTrip())
+        return 1;
 
     const std::vector<Shot> shots = {
         { "01-blade-brass.png", "Blade Brass", { 36, 48, 51, 55, 62 }, false, 0, 1.20f, {} },

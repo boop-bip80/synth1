@@ -122,6 +122,13 @@ AdvancedPanel::AdvancedPanel (Cs80AudioProcessor& owner)
     userPresetList.setRowHeight (38);
     userPresetList.setColour (juce::ListBox::backgroundColourId, panel);
     userPresetList.setColour (juce::ListBox::outlineColourId, accent.withAlpha (0.34f));
+    addAndMakeVisible (emptyBankMessage);
+    styleLabel (emptyBankMessage, 19.0f);
+    emptyBankMessage.setColour (juce::Label::textColourId, muted);
+    emptyBankMessage.setJustificationType (juce::Justification::centred);
+    emptyBankMessage.setText ("No saved patches yet. Name a sound and select SAVE to begin.",
+                              juce::dontSendNotification);
+    emptyBankMessage.setInterceptsMouseClicks (false, false);
 
     saveButton.onClick = [this] { savePreset(); };
     loadButton.onClick = [this] { loadPreset(); };
@@ -165,6 +172,7 @@ void AdvancedPanel::setPage (Page page)
     };
     for (auto* component : presetComponents)
         component->setVisible (page == Page::presets);
+    emptyBankMessage.setVisible (page == Page::presets && userPresetFiles.empty());
 
     modTab.setToggleState (page == Page::modulation, juce::dontSendNotification);
     tuningTab.setToggleState (page == Page::tuning, juce::dontSendNotification);
@@ -255,6 +263,7 @@ void AdvancedPanel::resized()
     nameCaption.setBounds (674, 180, 160, 30);
     nameBox.setBounds (824, 180, 393, 32);
     userPresetList.setBounds (100, 268, 1130, 448);
+    emptyBankMessage.setBounds (128, 420, 1074, 96);
     saveButton.setBounds (100, 740, 175, 47);
     loadButton.setBounds (285, 740, 175, 47);
     renameButton.setBounds (470, 740, 175, 47);
@@ -320,6 +329,11 @@ void AdvancedPanel::refreshPresetFiles()
 
     userPresetList.updateContent();
     userPresetList.repaint();
+    emptyBankMessage.setText (searchBox.getText().isEmpty()
+        ? "No saved patches yet. Name a sound and select SAVE to begin."
+        : "No matching patches. Clear the search or save a new sound.",
+        juce::dontSendNotification);
+    emptyBankMessage.setVisible (currentPage == Page::presets && userPresetFiles.empty());
 }
 
 juce::File AdvancedPanel::selectedPreset() const

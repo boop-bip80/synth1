@@ -73,6 +73,7 @@ private:
     juce::Label searchCaption, nameCaption;
     juce::TextEditor searchBox, nameBox;
     juce::ListBox userPresetList;
+    juce::Label emptyBankMessage;
     juce::TextButton saveButton { "SAVE" }, loadButton { "LOAD" };
     juce::TextButton renameButton { "RENAME" }, deleteButton { "DELETE" };
     juce::TextButton importButton { "IMPORT" }, exportButton { "EXPORT" };
