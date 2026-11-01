@@ -155,7 +155,25 @@ jobs:
           -DCS80_BUILD_TESTS=ON
 
       - name: Build plugin, standalone and tests
-        run: cmake --build build --config Release --parallel 2
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build --config Release --parallel 2 2>&1 | tee build-output.log
+
+      - name: Publish build failure details
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '### Build errors'
+            echo '```'
+            grep -nE 'error [A-Z]+[0-9]+|fatal error|LNK[0-9]+|MSB[0-9]+|FAILED' build-output.log | head -80 || true
+            echo '```'
+            echo '### Build log tail'
+            echo '```'
+            tail -n 80 build-output.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run headless tests
         run: ctest --test-dir build -C Release --output-on-failure
