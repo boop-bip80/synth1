@@ -298,6 +298,18 @@ jobs:
                   "macos": ["VST3", "AU", "Standalone"],
                   "windows": ["VST3", "Standalone"],
               },
+              "screenshots": [
+                  f"{base}/01-blade-brass.png",
+                  f"{base}/02-vangelis-lead.png",
+                  f"{base}/03-neon-pads.png",
+                  f"{base}/04-preset-library.png",
+                  f"{base}/05-brass-stab.png",
+                  f"{base}/06-filter-closeup.png",
+                  f"{base}/07-vca-sine.png",
+                  f"{base}/08-ribbon-keybed.png",
+                  f"{base}/09-blade-runner.png",
+                  f"{base}/10-channel-two.png",
+              ],
           }
           pathlib.Path("release/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           PY

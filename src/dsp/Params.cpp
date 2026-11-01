@@ -47,6 +47,7 @@ const FieldRef kFields[] = {
     { pid::lpfCutoff,  &Params::lpfCutoff },
     { pid::lpfRes,     &Params::lpfRes },
     { pid::filterTrack, &Params::filterTrack },
+    { pid::filterEnvAmt, &Params::filterEnvAmt },
     { pid::drive,      &Params::drive },
     { pid::fIl,        &Params::fIl },
     { pid::fAl,        &Params::fAl },
@@ -116,6 +117,7 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::lpfCutoff, "Cutoff", "LOW PASS", 40.0f, 16000.0f, 2400.0f, 0.3f, 0, "Hz" },
         { pid::lpfRes, "Resonance", "LOW PASS", 0.0f, 1.0f, 0.28f, 1.0f, 0, "" },
         { pid::filterTrack, "Key Track", "FILTER", 0.0f, 1.0f, 0.35f, 1.0f, 0, "" },
+        { pid::filterEnvAmt, "Env Depth", "FILTER EG", 0.0f, 1.0f, 1.0f, 1.0f, 0, "" },
         { pid::drive, "Drive", "FILTER", 0.0f, 1.0f, 0.25f, 1.0f, 0, "" },
 
         { pid::fIl, "Initial", "FILTER EG", 0.0f, 1.0f, 0.12f, 1.0f, 0, "" },

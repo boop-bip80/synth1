@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -88,6 +89,91 @@ struct SoftClipAdaa
 private:
     float previousInput = 0.0f;
     float previousIntegral = 0.0f;
+};
+
+//==============================================================================
+/** 2x decimator for the voice's nonlinear path.
+
+    The oscillators, filters and saturation now run at twice the host rate so
+    the harmonics they generate stay below Nyquist instead of folding back as
+    brittle digital fizz. This windowed half-band FIR is the only thing that
+    brings the signal back to the host rate. It is deliberately short: 33 taps
+    are flat to 16 kHz at 48 kHz, cost one multiply per tap, and add only eight
+    host samples of latency. */
+struct Decimator2x
+{
+    static constexpr int kTaps = 33;
+    static constexpr int kCenter = kTaps / 2;
+
+    void reset() noexcept
+    {
+        history.fill (0.0f);
+        index = 0;
+    }
+
+    /** Feed the odd (interpolated-rate) sample. It is needed by the next filter
+        output, but this sample itself is discarded when decimating. */
+    void pushOdd (float sample) noexcept
+    {
+        index = (index + 1 == kTaps) ? 0 : index + 1;
+        history[(size_t) index] = sample;
+    }
+
+    /** Feed the even sample and produce one host-rate output sample. */
+    float pushEven (float sample) noexcept
+    {
+        index = (index + 1 == kTaps) ? 0 : index + 1;
+        history[(size_t) index] = sample;
+
+        const auto& h = coefficients();
+        float sum = 0.0f;
+        int pos = index;
+
+        for (int i = 0; i < kTaps; ++i)
+        {
+            sum += h[(size_t) i] * history[(size_t) pos];
+
+            if (--pos < 0)
+                pos = kTaps - 1;
+        }
+
+        return sum;
+    }
+
+private:
+    static const std::array<float, kTaps>& coefficients()
+    {
+        static const auto table = []
+        {
+            std::array<float, kTaps> h {};
+            float sum = 0.0f;
+
+            for (int i = 0; i < kTaps; ++i)
+            {
+                const float n = (float) (i - kCenter);
+                const float sinc = std::abs (n) < 1.0e-6f
+                                     ? 0.5f
+                                     : 0.5f * std::sin (kPi * 0.5f * n) / (kPi * 0.5f * n);
+                const float w = 0.42f
+                              - 0.5f * std::cos (2.0f * kPi * (float) i / (float) (kTaps - 1))
+                              + 0.08f * std::cos (4.0f * kPi * (float) i / (float) (kTaps - 1));
+
+                h[(size_t) i] = sinc * w;
+                sum += h[(size_t) i];
+            }
+
+            if (std::abs (sum) > 1.0e-6f)
+                for (auto& c : h)
+                    c /= sum;
+
+            return h;
+        }();
+
+        return table;
+    }
+
+    std::array<float, kTaps> history {};
+    int index = 0;
 };
 
 //==============================================================================

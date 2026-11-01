@@ -47,6 +47,7 @@ inline constexpr const char* hpfRes     = "hpfRes";
 inline constexpr const char* lpfCutoff  = "lpfCutoff";
 inline constexpr const char* lpfRes     = "lpfRes";
 inline constexpr const char* filterTrack = "filterTrack";
+inline constexpr const char* filterEnvAmt = "filterEnvAmt";
 inline constexpr const char* drive      = "drive";
 
 inline constexpr const char* fIl        = "fIl";
@@ -145,6 +146,12 @@ struct Params
     float lpfCutoff = 2400.0f;
     float lpfRes = 0.28f;
     float filterTrack = 0.35f;
+
+    /** How much of the filter envelope's contour reaches the VCF. The CS-80
+        has a fixed, very deep sweep; this lets it be tamed for subtle patches
+        without losing the instrument's signature vowel movement. */
+    float filterEnvAmt = 1.0f;
+
     float drive = 0.25f;
 
     float fIl = 0.12f;

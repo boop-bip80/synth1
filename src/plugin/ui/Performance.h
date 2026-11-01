@@ -38,6 +38,7 @@ private:
     void timerCallback() override { repaint(); }
 
     const Engine& engine;
+    float peakL = 0.0f, peakR = 0.0f;
 };
 
 //==============================================================================

@@ -400,6 +400,66 @@ const std::vector<Preset>& factoryPresets()
             { pid::space, 0.58f }, { pid::spread, 0.88f }, { pid::vintage, 0.50f },
             { pid::master, -9.0f }, { pid::filterTrack, 0.46f },
         } },
+
+        //==============================================================================
+        // The Series 5 additions: deeper, slower and built for the wider
+        // stereo field, the calibrated filter-envelope depth and the 2x voice.
+        { "Empire Brass", "BRASS", "A cathedral of horns: slow bloom, deep body and a long amber tail.", {
+            { pid::layerMode, 1.0f }, { pid::layerLevel, 0.52f }, { pid::layerDetune, 10.0f },
+            { pid::layerPan, 0.46f }, { pid::layerCutoff, 0.22f }, { pid::layerRes, 0.32f },
+            { pid::layerEnv, 1.24f }, { pid::sineLevel, 0.30f }, { pid::vco1Sub, 0.22f },
+            { pid::hpfCutoff, 72.0f }, { pid::lpfCutoff, 1750.0f }, { pid::lpfRes, 0.34f },
+            { pid::filterEnvAmt, 0.88f }, { pid::fIl, 0.20f }, { pid::fAl, 0.98f },
+            { pid::fA, 0.62f }, { pid::fD, 2.80f }, { pid::fS, 0.52f }, { pid::fR, 2.90f },
+            { pid::aA, 0.42f }, { pid::aD, 2.10f }, { pid::aS, 0.91f }, { pid::aR, 3.20f },
+            { pid::twang, 0.32f }, { pid::aftertouch, 0.94f }, { pid::ensemble, 0.72f },
+            { pid::space, 0.60f }, { pid::spread, 0.90f }, { pid::vco1Detune, -8.0f },
+            { pid::vco2Detune, 9.0f }, { pid::drive, 0.36f }, { pid::vintage, 0.56f },
+            { pid::filterTrack, 0.44f }, { pid::lfoPitch, 0.08f }, { pid::lfoRate, 4.1f },
+            { pid::lfoDelay, 0.80f }, { pid::master, -9.5f },
+        } },
+
+        { "Solaris Pad", "PAD", "A slow solar wind of detuned cards, glass harmonics and a very wide horizon.", {
+            { pid::layerMode, 1.0f }, { pid::layerLevel, 0.62f }, { pid::layerDetune, 18.0f },
+            { pid::layerPan, 0.70f }, { pid::layerCutoff, 0.48f }, { pid::layerRes, 0.42f },
+            { pid::layerEnv, 1.70f }, { pid::layerPw, 0.30f }, { pid::sineLevel, 0.16f },
+            { pid::hpfCutoff, 420.0f }, { pid::lpfCutoff, 3400.0f }, { pid::lpfRes, 0.40f },
+            { pid::filterEnvAmt, 0.65f }, { pid::ring, 0.16f }, { pid::ringSpeed, 160.0f },
+            { pid::fIl, 0.16f }, { pid::fAl, 0.84f }, { pid::fA, 1.60f }, { pid::fD, 3.80f },
+            { pid::fS, 0.62f }, { pid::fR, 4.60f }, { pid::aA, 1.30f }, { pid::aD, 3.40f },
+            { pid::aS, 0.84f }, { pid::aR, 5.40f }, { pid::ensemble, 0.86f }, { pid::space, 0.78f },
+            { pid::spread, 0.94f }, { pid::lfoPwm, 0.30f }, { pid::lfoRate, 0.18f },
+            { pid::lfoPitch, 0.10f }, { pid::vintage, 0.62f }, { pid::drive, 0.22f },
+            { pid::filterTrack, 0.42f }, { pid::master, -10.5f },
+        } },
+
+        { "Fifth Element", "LEAD", "A close, breathy solo voice with a sine core and a warm pressure vibrato.", {
+            { pid::layerMode, 1.0f }, { pid::layerLevel, 0.36f }, { pid::layerDetune, 7.0f },
+            { pid::layerPan, 0.24f }, { pid::layerCutoff, 0.30f }, { pid::layerRes, 0.42f },
+            { pid::layerEnv, 1.20f }, { pid::sineLevel, 0.34f }, { pid::vco2Pw, 0.26f },
+            { pid::ring, 0.10f }, { pid::ringSpeed, 240.0f }, { pid::hpfCutoff, 190.0f },
+            { pid::lpfCutoff, 4600.0f }, { pid::lpfRes, 0.48f }, { pid::filterEnvAmt, 0.72f },
+            { pid::fIl, 0.14f }, { pid::fAl, 0.96f }, { pid::fA, 0.12f }, { pid::fD, 1.10f },
+            { pid::fS, 0.50f }, { pid::fR, 1.40f }, { pid::aA, 0.05f }, { pid::aD, 1.00f },
+            { pid::aS, 0.90f }, { pid::aR, 1.50f }, { pid::aftertouch, 1.0f },
+            { pid::lfoPitch, 0.22f }, { pid::lfoRate, 5.4f }, { pid::lfoDelay, 0.30f },
+            { pid::twang, 0.16f }, { pid::glide, 0.08f }, { pid::ensemble, 0.46f },
+            { pid::space, 0.44f }, { pid::spread, 0.52f }, { pid::vintage, 0.38f },
+            { pid::drive, 0.40f }, { pid::filterTrack, 0.36f }, { pid::master, -8.5f },
+        } },
+
+        { "Chrome Strings", "STRINGS", "Bright, wide string machine: polished, airborne and endlessly unfolding.", {
+            { pid::layerMode, 1.0f }, { pid::layerLevel, 0.64f }, { pid::layerDetune, 12.0f },
+            { pid::layerPan, 0.66f }, { pid::layerCutoff, 0.34f }, { pid::layerRes, 0.26f },
+            { pid::layerEnv, 1.50f }, { pid::sineLevel, 0.10f }, { pid::hpfCutoff, 300.0f },
+            { pid::lpfCutoff, 4200.0f }, { pid::lpfRes, 0.30f }, { pid::filterEnvAmt, 0.70f },
+            { pid::fIl, 0.24f }, { pid::fAl, 0.86f }, { pid::fA, 0.90f }, { pid::fD, 3.00f },
+            { pid::fS, 0.58f }, { pid::fR, 3.60f }, { pid::aA, 0.90f }, { pid::aD, 2.60f },
+            { pid::aS, 0.92f }, { pid::aR, 4.20f }, { pid::ensemble, 0.84f }, { pid::space, 0.54f },
+            { pid::spread, 0.92f }, { pid::vco1Sub, 0.12f }, { pid::vintage, 0.52f },
+            { pid::drive, 0.28f }, { pid::filterTrack, 0.50f }, { pid::lfoPitch, 0.12f },
+            { pid::lfoRate, 4.6f }, { pid::lfoDelay, 0.60f }, { pid::master, -9.0f },
+        } },
     };
 
     return presets;

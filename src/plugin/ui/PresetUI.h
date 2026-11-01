@@ -3,6 +3,7 @@
 #include "Widgets.h"
 
 #include <functional>
+#include <vector>
 
 namespace cs80
 {
@@ -12,7 +13,8 @@ class Cs80AudioProcessor;
 namespace cs80::ui
 {
 //==============================================================================
-class PresetDisplay : public juce::Component, private juce::Timer
+class PresetDisplay : public juce::Component, public juce::SettableTooltipClient,
+                      private juce::Timer
 {
 public:
     explicit PresetDisplay (Cs80AudioProcessor& processorToUse);
@@ -37,7 +39,7 @@ private:
 };
 
 //==============================================================================
-/** Full-panel preset library. Clicking a patch auditions it immediately. */
+/** Full-panel preset library. Filter by category, click a patch to audition. */
 class PresetBrowser : public juce::Component
 {
 public:
@@ -58,12 +60,17 @@ public:
     void setHoverRowForSnapshot (int row) { hoverRow = row; repaint(); }
 
 private:
+    std::vector<int> visiblePresets() const;
     juce::Rectangle<float> rowBounds (int row) const;
     int rowAt (juce::Point<float> position) const;
     int closeButtonHit (juce::Point<float> position) const;
+    juce::Rectangle<float> chipBounds (int index) const;
+    int chipAt (juce::Point<float> position) const;
+    void setFilter (const juce::String& category);
 
     Cs80AudioProcessor& processor;
     int hoverRow = -1;
+    juce::String filterCategory;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBrowser)
 };
