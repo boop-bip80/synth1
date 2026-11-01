@@ -90,6 +90,36 @@ inline float signedFromHash (uint32_t value) noexcept
     return (float) (value & 0xffffffu) / 8388608.0f - 1.0f;
 }
 
+struct ModRoute
+{
+    int source = 0;
+    int destination = 0;
+    float amount = 0.0f;
+};
+
+/** Value of one modulation source, already normalised. LFO and random are
+    bipolar; envelopes, velocity and pressures are unipolar. */
+inline float modulationSourceValue (int source, float lfo, float velocity,
+                                   float channelPressure, float polyPressure,
+                                   float modWheel, float keyTrack,
+                                   float filterEnv, float ampEnv,
+                                   float randomValue) noexcept
+{
+    switch (source)
+    {
+        case modsrc::lfo:             return lfo;
+        case modsrc::velocity:        return velocity;
+        case modsrc::channelPressure: return channelPressure;
+        case modsrc::polyPressure:    return polyPressure;
+        case modsrc::modWheel:        return modWheel;
+        case modsrc::keyTrack:        return keyTrack;
+        case modsrc::filterEnv:       return filterEnv;
+        case modsrc::ampEnv:          return ampEnv;
+        case modsrc::random:          return randomValue;
+        default:                      return 0.0f;
+    }
+}
+
 struct Modulation
 {
     float lfoPhase = 0.0f;       // phase at the start of the block
@@ -575,6 +605,8 @@ struct Layer
         declickPending = false;
         ringPhase = 0.0;
         noiseState = 0x12345678u;
+        modulationPitch = modulationPwm = modulationCutoff = 0.0f;
+        modulationResonance = modulationAmp = modulationDrive = modulationLevel = 0.0f;
 
         for (int i = 0; i < kDeclickSamples; ++i)
             declickCurve[(size_t) i] = 0.5f + 0.5f * std::cos (kPi * (float) i
@@ -594,6 +626,8 @@ struct Layer
         declickCorrection = 0.0f;
         declickRemaining = kDeclickSamples;
         declickPending = false;
+        modulationPitch = modulationPwm = modulationCutoff = 0.0f;
+        modulationResonance = modulationAmp = modulationDrive = modulationLevel = 0.0f;
     }
 
     float nextNoise() noexcept
@@ -625,6 +659,17 @@ struct Layer
     bool declickPending = false;
     double ringPhase = 0.0;
     uint32_t noiseState = 0x12345678u;
+
+    // Smoothed modulation-matrix offsets. Smoothing here (not on the raw
+    // route amounts) means an automated amount moves like a slider rather than
+    // like a sequence of steps, and it costs one multiply per destination.
+    float modulationPitch = 0.0f;      // semitones
+    float modulationPwm = 0.0f;        // pulse-width fraction
+    float modulationCutoff = 0.0f;     // octaves
+    float modulationResonance = 0.0f;  // 0..1 offset
+    float modulationAmp = 0.0f;        // gain offset
+    float modulationDrive = 0.0f;      // 0..1 offset
+    float modulationLevel = 0.0f;      // layer gain offset
 };
 
 //==============================================================================
@@ -751,6 +796,10 @@ struct Voice
         twangCurrent = twangSemis;
 
         lastNote = (float) midiNote;
+
+        // A per-note random value gives the Random source a stable identity
+        // for the life of the note instead of a per-block lottery.
+        modRandom = signedFromHash (mixHash (noiseState ^ 0x51ed270bu));
     }
 
     float nextNoise() noexcept
@@ -801,7 +850,8 @@ struct Voice
         is panned. */
     void render (float* left, float* right, int numSamples, const Params& p,
                  const Modulation& mod, bool useLayerA, bool useLayerB,
-                 float panA, float panB) noexcept
+                 float panA, float panB, const ModRoute* routes, int routeCount,
+                 const Tuning& tuning) noexcept
     {
         if (! active)
             return;
@@ -905,18 +955,49 @@ struct Voice
         if (useLayerA)
             renderLayer (0, bufferA, numSamples, p, mod, driftCents - layerDriftCents * 0.5f,
                          aftertouch, velocityOctaves, ampGain, glidePitchBlocks,
-                         twangBlocks, layerCutoffDrift);
+                         twangBlocks, layerCutoffDrift, routes, routeCount, tuning);
 
         if (useLayerB)
             renderLayer (1, bufferB, numSamples, p, mod, driftCents + layerDriftCents * 0.5f,
                          aftertouch, velocityOctaves, ampGain, glidePitchBlocks,
-                         twangBlocks, layerCutoffDrift);
+                         twangBlocks, layerCutoffDrift, routes, routeCount, tuning);
+
+        // Pan is a voice-level destination, so it is evaluated once per
+        // chunk. The existing one-pole pan glide turns the chunk-rate updates
+        // into a smooth movement without per-sample routing cost.
+        float panModulation = 0.0f;
+
+        if (routeCount > 0)
+        {
+            const float lfo = lfoWaveform (p.lfoWave, mod.lfoPhase,
+                                           *layers[0].oscillatorTables);
+            const float keyTrackSource = clampf ((glidePitch - 60.0f) / 36.0f, -1.0f, 1.0f);
+            const float poly = polyPressure >= 0.0f ? polyPressure : 0.0f;
+
+            for (int r = 0; r < routeCount; ++r)
+            {
+                const auto& route = routes[r];
+
+                if (route.destination != moddest::pan)
+                    continue;
+
+                const float value = modulationSourceValue (route.source, lfo, velocity,
+                                                           mod.channelPressure, poly,
+                                                           mod.modWheel, keyTrackSource,
+                                                           layers[0].filterEnv.getValue(),
+                                                           layers[0].ampEnv.getValue(),
+                                                           modRandom);
+                panModulation += route.amount * value;
+            }
+
+            panModulation = clampf (panModulation, -1.0f, 1.0f);
+        }
 
         // Changing the voice count changes each voice's place in the stereo
         // field. Sliding to the new position instead of jumping keeps chords
         // smooth as notes are added and released.
-        panACurrent += (panA - panACurrent) * 0.25f;
-        panBCurrent += (panB - panBCurrent) * 0.25f;
+        panACurrent += (clampf (panA + panModulation, -1.0f, 1.0f) - panACurrent) * 0.25f;
+        panBCurrent += (clampf (panB + panModulation, -1.0f, 1.0f) - panBCurrent) * 0.25f;
 
         const float angleA = (panACurrent + 1.0f) * kPi * 0.25f;
         const float angleB = (panBCurrent + 1.0f) * kPi * 0.25f;
@@ -949,17 +1030,14 @@ struct Voice
                       const Modulation& mod, float driftCents, float aftertouch,
                       float velocityOctaves, float ampGain,
                       const float* glidePitchBlocks, const float* twangBlocks,
-                      float layerCutoffDrift) noexcept
+                      float layerCutoffDrift, const ModRoute* routes, int routeCount,
+                      const Tuning& tuning) noexcept
     {
         auto& layer = layers[(size_t) index];
         const bool second = index == 1;
 
-        const float lpfRes = second ? p.layerRes : p.lpfRes;
-        const float lpfQ = 0.7f + lpfRes * 12.6f;
+        const float baseLpfRes = second ? p.layerRes : p.lpfRes;
         const float hpfQ = 0.7f + p.hpfRes * 7.0f;
-        const float drive = 1.0f + p.drive * 2.3f + lpfRes * 0.85f;
-        const float driveComp = 1.0f / (0.62f * drive + 0.38f);
-        const float filterSat = 0.7f + p.drive * 2.4f + lpfRes * 2.6f;
         const float layerGain = second ? clampf (p.layerLevel, 0.0f, 1.0f) : 1.0f;
         const float layerAmp = ampGain * layerGain;
         const float pitchOffset = second ? p.layerOctave * 12.0f + p.layerDetune * 0.01f : 0.0f;
@@ -992,6 +1070,61 @@ struct Voice
             const float modAmount = lfo * mod.lfoFade;
             const float keytrack = (glidePitchLocal - 60.0f) / 12.0f * p.filterTrack;
 
+            // ---- Modulation matrix -------------------------------------------------
+            float routePitch = 0.0f, routePwm = 0.0f, routeCutoff = 0.0f;
+            float routeResonance = 0.0f, routeAmp = 0.0f, routeDrive = 0.0f;
+            float routeLevel = 0.0f;
+
+            if (routeCount > 0)
+            {
+                const float keyTrackSource = clampf ((glidePitchLocal - 60.0f) / 36.0f,
+                                                     -1.0f, 1.0f);
+                const float poly = polyPressure >= 0.0f ? polyPressure : 0.0f;
+
+                for (int r = 0; r < routeCount; ++r)
+                {
+                    const auto& route = routes[r];
+                    const float value = modulationSourceValue (route.source, lfo, velocity,
+                                                               mod.channelPressure, poly,
+                                                               mod.modWheel, keyTrackSource,
+                                                               layer.filterEnv.getValue(),
+                                                               layer.ampEnv.getValue(),
+                                                               modRandom);
+                    const float scaled = route.amount * value;
+
+                    switch (route.destination)
+                    {
+                        case moddest::pitch:        routePitch += scaled * 24.0f; break;
+                        case moddest::pulseWidth:   routePwm += scaled * 0.45f; break;
+                        case moddest::cutoff:       routeCutoff += scaled * 4.0f; break;
+                        case moddest::resonance:    routeResonance += scaled * 0.9f; break;
+                        case moddest::amplitude:    routeAmp += scaled * 0.8f; break;
+                        case moddest::drive:        routeDrive += scaled * 0.8f; break;
+                        case moddest::layerLevel:   routeLevel += scaled * 0.8f; break;
+                        default: break;
+                    }
+                }
+            }
+
+            const float modCoeff = 1.0f - std::exp (-(float) n / (0.004f * (float) sampleRate));
+            layer.modulationPitch += (routePitch - layer.modulationPitch) * modCoeff;
+            layer.modulationPwm += (routePwm - layer.modulationPwm) * modCoeff;
+            layer.modulationCutoff += (routeCutoff - layer.modulationCutoff) * modCoeff;
+            layer.modulationResonance += (routeResonance - layer.modulationResonance) * modCoeff;
+            layer.modulationAmp += (routeAmp - layer.modulationAmp) * modCoeff;
+            layer.modulationDrive += (routeDrive - layer.modulationDrive) * modCoeff;
+            layer.modulationLevel += (routeLevel - layer.modulationLevel) * modCoeff;
+
+            const float lpfRes = clampf (baseLpfRes + layer.modulationResonance, 0.0f, 1.0f);
+            const float lpfQ = 0.7f + lpfRes * 12.6f;
+            const float driveAmount = clampf (p.drive + layer.modulationDrive, 0.0f, 1.0f);
+            const float drive = 1.0f + driveAmount * 2.3f + lpfRes * 0.85f;
+            const float driveComp = 1.0f / (0.62f * drive + 0.38f);
+            const float filterSat = 0.7f + driveAmount * 2.4f + lpfRes * 2.6f;
+            const float blockLayerAmp = layerAmp
+                                      * clampf (1.0f + layer.modulationAmp, 0.0f, 2.0f)
+                                      * clampf (1.0f + layer.modulationLevel, 0.2f, 2.0f);
+
             const float hpCutoff = clampf (p.hpfCutoff * std::exp2 ((glidePitchLocal - 60.0f) / 12.0f * 0.15f),
                                            20.0f, 6000.0f);
             layer.hpf.setCoefficients (voiceRateF, hpCutoff, hpfQ);
@@ -1007,19 +1140,21 @@ struct Voice
             const float vibratoCents = modAmount
                                      * (p.lfoPitch * (18.0f + 42.0f * mod.modWheel) + aftertouch * 30.0f);
 
-            const float pitchSemis = baseSemis + vibratoCents * 0.01f;
+            const float pitchSemis = baseSemis + vibratoCents * 0.01f + layer.modulationPitch;
 
-            const double f1 = 440.0 * std::exp2 ((glidePitchLocal - 69.0
-                                                  + pitchSemis - twangSemis
-                                                  + p.vco1Octave * 12.0
-                                                  + p.vco1Detune * 0.01
-                                                  + pitchOffset) / 12.0);
+            // The tuning table, not a hard-coded 440 Hz formula, turns a note
+            // number into a frequency. In 12-TET the two are identical.
+            const double f1 = tuning.frequencyForNote (glidePitchLocal
+                                                       + pitchSemis - twangSemis
+                                                       + p.vco1Octave * 12.0
+                                                       + p.vco1Detune * 0.01
+                                                       + pitchOffset);
 
-            const double f2 = 440.0 * std::exp2 ((glidePitchLocal - 69.0
-                                                  + pitchSemis - twangSemis
-                                                  + p.vco2Octave * 12.0
-                                                  + p.vco2Detune * 0.01
-                                                  + pitchOffset) / 12.0);
+            const double f2 = tuning.frequencyForNote (glidePitchLocal
+                                                       + pitchSemis - twangSemis
+                                                       + p.vco2Octave * 12.0
+                                                       + p.vco2Detune * 0.01
+                                                       + pitchOffset);
 
             layer.osc1.setFrequency (voiceRate, f1);
             layer.osc2.setFrequency (voiceRate, f2);
@@ -1028,7 +1163,8 @@ struct Voice
 
             const float pulseWidth = clampf (pulseWidthBase
                                              + modAmount * p.lfoPwm * 0.38f
-                                             + aftertouch * 0.11f,
+                                             + aftertouch * 0.11f
+                                             + layer.modulationPwm,
                                              0.03f, 0.97f);
 
             const float cutoffOctaves = keytrack
@@ -1038,6 +1174,7 @@ struct Voice
                                       + velocityOctaves
                                       + vintageCutoffOct
                                       + layerCutoffDrift
+                                      + layer.modulationCutoff
                                       + cutoffOffset;
 
             const float targetCutoff = clampf (p.lpfCutoff * std::exp2 (cutoffOctaves),
@@ -1130,7 +1267,7 @@ struct Voice
                     const float mixed = filtered + sine * p.sineLevel * 0.85f;
                     const float warmed = layer.vcaAdaa.process (mixed * 1.16f) * (1.0f / 1.16f);
 
-                    const float value = warmed * amp * layerAmp * tremolo * vintageLevel;
+                    const float value = warmed * amp * blockLayerAmp * tremolo * vintageLevel;
 
                     if (os == 0)
                         layer.decimator.pushOdd (value);
@@ -1186,6 +1323,7 @@ struct Voice
     float vintageLevel = 1.0f;
     float vintageEnvScale = 1.0f;
     float panACurrent = 0.0f, panBCurrent = 0.0f;
+    float modRandom = 0.0f;
 };
 } // namespace
 
@@ -1200,6 +1338,15 @@ struct Engine::Impl
     Chorus chorus;
     PlateReverb reverb;
     WarmSatAdaa outputSatL, outputSatR;
+
+    std::array<ModRoute, pid::kModSlots> routes {};
+    int routeCount = 0;
+
+    // Two tuning tables. The message thread fills the inactive one and flips
+    // the index; the audio thread reads whichever table is current. No locks
+    // and no allocation in the callback.
+    std::array<Tuning, 2> tunings;
+    std::atomic<int> activeTuning { 0 };
 
     std::array<std::atomic<float>, kNumVoices> activity {};
     std::atomic<float> meterL { 0.0f }, meterR { 0.0f };
@@ -1325,8 +1472,41 @@ struct Engine::Impl
         bAlive = useLayerB && voice.layers[1].ampEnv.isActive();
     }
 
+    void publishTuning (const Tuning& newTuning)
+    {
+        const int current = activeTuning.load (std::memory_order_relaxed);
+        tunings[(size_t) (1 - current)] = newTuning;
+        activeTuning.store (1 - current, std::memory_order_release);
+    }
+
+    const Tuning& currentTuning() const
+    {
+        return tunings[(size_t) activeTuning.load (std::memory_order_acquire)];
+    }
+
     void processChunk (float* left, float* right, int numSamples)
     {
+        // Compile the eight routing slots once per chunk. A slot that is off,
+        // unrouted or at zero depth is left out of the per-control-block loop
+        // entirely, so an unused matrix costs one comparison per slot.
+        routeCount = 0;
+
+        for (int slot = 0; slot < pid::kModSlots; ++slot)
+        {
+            const int source = (int) std::round (params.modSource[slot]);
+            const int destination = (int) std::round (params.modDest[slot]);
+            const float amount = params.modAmount[slot];
+
+            if (source > modsrc::off && source < modsrc::count
+                && destination > moddest::off && destination < moddest::count
+                && std::abs (amount) > 1.0e-4f)
+            {
+                routes[(size_t) routeCount++] = { source, destination, amount };
+            }
+        }
+
+        const Tuning& currentTuningTable = currentTuning();
+
         std::fill_n (mixL.begin(), numSamples, 0.0f);
         std::fill_n (mixR.begin(), numSamples, 0.0f);
 
@@ -1393,7 +1573,8 @@ struct Engine::Impl
             const float panB = clampf (params.layerPan * 0.86f - voicePan * 0.64f, -1.0f, 1.0f);
 
             v.render (mixL.data(), mixR.data(), numSamples, params, mod,
-                      useA, useB, panA, panB);
+                      useA, useB, panA, panB, routes.data(), routeCount,
+                      currentTuningTable);
 
             bool aAlive = false, bAlive = false;
             layerActivity (v, useA, useB, aAlive, bAlive);
@@ -1551,6 +1732,16 @@ bool Engine::voiceIsActive (int index) const
         return false;
 
     return impl->voices[(size_t) index].active;
+}
+
+void Engine::setTuning (const Tuning& newTuning)
+{
+    impl->publishTuning (newTuning);
+}
+
+const Tuning& Engine::tuning() const
+{
+    return impl->currentTuning();
 }
 
 void Engine::setParams (const Params& newParams)

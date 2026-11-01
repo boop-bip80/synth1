@@ -78,7 +78,64 @@ inline constexpr const char* glide      = "glide";
 inline constexpr const char* tune       = "tune";
 inline constexpr const char* vintage    = "vintage";
 inline constexpr const char* twang      = "twang";
+
+// Eight modulation-matrix slots. The ids are generated from these arrays by
+// the parameter table and read back by the engine without allocating strings.
+inline constexpr int kModSlots = 8;
+
+inline constexpr const char* modSourceIds[kModSlots] = {
+    "mod1Source", "mod2Source", "mod3Source", "mod4Source",
+    "mod5Source", "mod6Source", "mod7Source", "mod8Source"
+};
+
+inline constexpr const char* modDestIds[kModSlots] = {
+    "mod1Dest", "mod2Dest", "mod3Dest", "mod4Dest",
+    "mod5Dest", "mod6Dest", "mod7Dest", "mod8Dest"
+};
+
+inline constexpr const char* modAmountIds[kModSlots] = {
+    "mod1Amount", "mod2Amount", "mod3Amount", "mod4Amount",
+    "mod5Amount", "mod6Amount", "mod7Amount", "mod8Amount"
+};
 } // namespace pid
+
+//==============================================================================
+/** Modulation sources and destinations. Stored as small integers so the whole
+    parameter set stays POD and can be serialised by the host without JUCE. */
+namespace modsrc
+{
+enum Type
+{
+    off = 0,
+    lfo,
+    velocity,
+    channelPressure,
+    polyPressure,
+    modWheel,
+    keyTrack,
+    filterEnv,
+    ampEnv,
+    random,
+    count
+};
+} // namespace modsrc
+
+namespace moddest
+{
+enum Type
+{
+    off = 0,
+    pitch,
+    pulseWidth,
+    cutoff,
+    resonance,
+    amplitude,
+    pan,
+    drive,
+    layerLevel,
+    count
+};
+} // namespace moddest
 
 //==============================================================================
 struct ParamSpec
@@ -185,6 +242,14 @@ struct Params
     /** CS-80 "initial pitch bend": velocity starts the note slightly flat and
         lets it spring up to pitch, the little brass/woodwind twang. */
     float twang = 0.0f;
+
+    /** Eight modulation routes. Amounts are bipolar (-1..+1). A route with a
+        source or destination of `off`, or a zero amount, costs nothing in the
+        audio loop. Defaults are neutral, so existing presets and states keep
+        their exact sound. */
+    float modSource[pid::kModSlots] {};
+    float modDest[pid::kModSlots] {};
+    float modAmount[pid::kModSlots] {};
 };
 
 Params defaultParams();

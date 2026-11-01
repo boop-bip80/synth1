@@ -15,6 +15,27 @@ struct FieldRef
 
 // Pointer-to-member keeps this table honest: the test suite round-trips every
 // spec through it, so an unmapped parameter fails the build's checks.
+const char* const kModSourceNames[pid::kModSlots] = {
+    "Route 1 Source", "Route 2 Source", "Route 3 Source", "Route 4 Source",
+    "Route 5 Source", "Route 6 Source", "Route 7 Source", "Route 8 Source"
+};
+
+const char* const kModDestNames[pid::kModSlots] = {
+    "Route 1 Dest", "Route 2 Dest", "Route 3 Dest", "Route 4 Dest",
+    "Route 5 Dest", "Route 6 Dest", "Route 7 Dest", "Route 8 Dest"
+};
+
+const char* const kModAmountNames[pid::kModSlots] = {
+    "Route 1 Amount", "Route 2 Amount", "Route 3 Amount", "Route 4 Amount",
+    "Route 5 Amount", "Route 6 Amount", "Route 7 Amount", "Route 8 Amount"
+};
+
+constexpr const char* kModSourceChoices =
+    "Off|LFO|Velocity|Channel Pressure|Poly Pressure|Mod Wheel|Key Track|Filter Env|Amp Env|Random";
+
+constexpr const char* kModDestChoices =
+    "Off|Pitch|Pulse Width|Filter Cutoff|Resonance|Amplitude|Pan|Drive|Layer Level";
+
 const FieldRef kFields[] = {
     { pid::master,     &Params::masterDb },
     { pid::brilliance, &Params::brilliance },
@@ -80,7 +101,9 @@ const FieldRef kFields[] = {
 //==============================================================================
 const std::vector<ParamSpec>& paramSpecs()
 {
-    static const std::vector<ParamSpec> specs = {
+    static const std::vector<ParamSpec> specs = []
+    {
+        std::vector<ParamSpec> all = {
         { pid::master, "Master", "OUTPUT", -24.0f, 12.0f, -4.0f, 1.0f, 0, "dB" },
         { pid::brilliance, "Brilliance", "OUTPUT", -1.0f, 1.0f, 0.0f, 1.0f, 0, "" },
         { pid::ensemble, "Ensemble", "OUTPUT", 0.0f, 1.0f, 0.38f, 1.0f, 0, "" },
@@ -148,7 +171,20 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::tune, "Tune", "PERFORMANCE", -50.0f, 50.0f, 0.0f, 1.0f, 0, "ct" },
         { pid::vintage, "Vintage", "PERFORMANCE", 0.0f, 1.0f, 0.35f, 1.0f, 0, "" },
         { pid::twang, "Initial Bend", "PERFORMANCE", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
-    };
+        };
+
+        for (int slot = 0; slot < pid::kModSlots; ++slot)
+        {
+            all.push_back ({ pid::modSourceIds[slot], kModSourceNames[slot], "MOD MATRIX",
+                             0.0f, 9.0f, 0.0f, 1.0f, 10, "", kModSourceChoices });
+            all.push_back ({ pid::modDestIds[slot], kModDestNames[slot], "MOD MATRIX",
+                             0.0f, 8.0f, 0.0f, 1.0f, 9, "", kModDestChoices });
+            all.push_back ({ pid::modAmountIds[slot], kModAmountNames[slot], "MOD MATRIX",
+                             -1.0f, 1.0f, 0.0f, 1.0f, 0, "" });
+        }
+
+        return all;
+    }();
 
     return specs;
 }
@@ -195,6 +231,18 @@ float getParam (const Params& params, const std::string& id)
         if (id == f.id)
             return params.*(f.member);
 
+    for (int slot = 0; slot < pid::kModSlots; ++slot)
+    {
+        if (id == pid::modSourceIds[slot])
+            return params.modSource[slot];
+
+        if (id == pid::modDestIds[slot])
+            return params.modDest[slot];
+
+        if (id == pid::modAmountIds[slot])
+            return params.modAmount[slot];
+    }
+
     return 0.0f;
 }
 
@@ -208,17 +256,43 @@ void setParam (Params& params, const std::string& id, float value)
             return;
         }
     }
+
+    for (int slot = 0; slot < pid::kModSlots; ++slot)
+    {
+        const float clamped = clampToSpec (id, value);
+
+        if (id == pid::modSourceIds[slot])
+        {
+            params.modSource[slot] = clamped;
+            return;
+        }
+
+        if (id == pid::modDestIds[slot])
+        {
+            params.modDest[slot] = clamped;
+            return;
+        }
+
+        if (id == pid::modAmountIds[slot])
+        {
+            params.modAmount[slot] = clamped;
+            return;
+        }
+    }
 }
 
 float clampToSpec (const std::string& id, float value)
 {
     if (const auto* spec = findSpec (id))
     {
-        if (spec->steps > 0 && (spec->id == pid::vco1Octave
-                                || spec->id == pid::vco2Octave
-                                || spec->id == pid::layerOctave))
-            value = std::round (value);
-        else if (spec->steps > 0 && (spec->id == pid::layerMode || spec->id == pid::splitPoint))
+        bool isChoice = spec->id == pid::vco1Octave
+                     || spec->id == pid::vco2Octave
+                     || spec->id == pid::layerOctave
+                     || spec->id == pid::layerMode
+                     || spec->id == pid::splitPoint
+                     || (spec->steps > 0 && std::string (spec->id).rfind ("mod", 0) == 0);
+
+        if (isChoice)
             value = std::round (value);
 
         return std::clamp (value, spec->minValue, spec->maxValue);

@@ -227,7 +227,13 @@ void testParameterTable()
         CHECK (specIndex (spec.id) >= 0);
 
         Params p = defaultParams();
-        const float mid = (spec.minValue + spec.maxValue) * 0.5f;
+        float mid = (spec.minValue + spec.maxValue) * 0.5f;
+
+        // Stepped parameters (octave switches, choices, matrix routing) snap
+        // to their interval, so the round-trip expectation must snap too.
+        if (spec.steps > 0)
+            mid = std::round (mid);
+
         setParam (p, spec.id, mid);
         CHECK_NEAR (getParam (p, spec.id), mid, 0.0001f);
 
@@ -1681,6 +1687,232 @@ void testVelocityOpensFilter()
     CHECK (hard > soft * 1.05f);
 }
 
+void testMicrotuning()
+{
+    std::printf ("- microtuning (Scala scl/kbm)\n");
+
+    Tuning equal;
+    CHECK (equal.isEqualTemperament());
+    CHECK_NEAR (equal.noteFrequency (69), 440.0f, 0.001f);
+    CHECK_NEAR (equal.noteFrequency (60), 261.6256f, 0.02f);
+    CHECK_NEAR (equal.frequencyForNote (60.5),
+                440.0 * std::exp2 (-8.5 / 12.0), 0.02f);
+
+    // A five-note scale: C, D, E, G, A and the octave.
+    Tuning pentatonic;
+    std::string error = "not set";
+    const std::string scale = "! test scale\nMajor pentatonic\n5\n200.0\n200.0\n300.0\n200.0\n300.0\n";
+    CHECK (pentatonic.loadScala (scale, &error));
+    CHECK (error.empty());
+    CHECK (! pentatonic.isEqualTemperament());
+    CHECK (pentatonic.scaleNoteCount() == 5);
+    CHECK_NEAR (pentatonic.noteFrequency (60), 261.6256f, 0.05f);
+    CHECK_NEAR (pentatonic.noteFrequency (61),
+                261.6256 * std::exp2 (200.0 / 1200.0), 0.05f);
+    CHECK_NEAR (pentatonic.noteFrequency (62),
+                261.6256 * std::exp2 (400.0 / 1200.0), 0.05f);
+    CHECK_NEAR (pentatonic.noteFrequency (65), 261.6256 * 2.0, 0.05f);
+
+    // Malformed input is rejected and leaves the previous tuning untouched.
+    Tuning invalid;
+    error.clear();
+    CHECK (! invalid.loadScala ("not a scale\nbanana\n", &error));
+    CHECK (! error.empty());
+    CHECK (invalid.isEqualTemperament());
+    CHECK_NEAR (invalid.noteFrequency (69), 440.0f, 0.001f);
+
+    // A .kbm mapping can move the reference pitch without touching the scale.
+    Tuning baroque;
+    const std::string mapping = "! mapping\n12\n0\n127\n60\n69\n432.0\n12\n"
+                                "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n";
+    error.clear();
+    CHECK (baroque.loadKeyboardMapping (mapping, &error));
+    CHECK (error.empty());
+    CHECK_NEAR (baroque.noteFrequency (69), 432.0f, 0.01f);
+    CHECK_NEAR (baroque.noteFrequency (57), 216.0f, 0.01f);
+
+    // The engine must actually use the table: an A3 should render at 216 Hz.
+    Params p = plainPatch();
+    p.sineLevel = 1.0f;
+    p.vco1Level = 0.0f;
+    p.vco2Level = 0.0f;
+    p.lpfCutoff = 8000.0f;
+
+    Engine engine;
+    engine.prepare (48000.0);
+    engine.setParams (p);
+    engine.setTuning (baroque);
+    engine.noteOn (57, 1.0f);
+
+    // A full second, measured after the attack: zero-crossing counting is only
+    // accurate to one cycle per window, so the window must be long enough.
+    auto buffer = render (engine, 60000);
+    std::vector<float> tail (buffer.left.begin() + 12000, buffer.left.end());
+    const float frequency = estimateFrequency (tail, 48000.0);
+    CHECK (allFinite (buffer));
+    CHECK_NEAR (frequency, 216.0f, 1.5f);
+}
+
+void testModulationMatrix()
+{
+    std::printf ("- modulation matrix\n");
+
+    Params routed = plainPatch();
+
+    for (int slot = 0; slot < pid::kModSlots; ++slot)
+    {
+        const std::string sourceId = pid::modSourceIds[slot];
+        const std::string destId = pid::modDestIds[slot];
+        const std::string amountId = pid::modAmountIds[slot];
+
+        setParam (routed, sourceId, 3.0f);
+        setParam (routed, destId, 4.0f);
+        setParam (routed, amountId, -0.6f);
+
+        CHECK_NEAR (getParam (routed, sourceId), 3.0f, 0.0001f);
+        CHECK_NEAR (getParam (routed, destId), 4.0f, 0.0001f);
+        CHECK_NEAR (getParam (routed, amountId), -0.6f, 0.0001f);
+
+        setParam (routed, amountId, 5.0f);
+        CHECK_NEAR (getParam (routed, amountId), 1.0f, 0.0001f);
+
+        setParam (routed, sourceId, 0.0f);
+        setParam (routed, destId, 0.0f);
+        setParam (routed, amountId, 0.0f);
+    }
+
+    auto renderNote = [] (int note, int source, int dest, float amount, float velocity)
+    {
+        Params p = plainPatch();
+        p.sineLevel = 1.0f;
+        p.vco1Level = 0.0f;
+        p.vco2Level = 0.0f;
+        p.lpfCutoff = 8000.0f;
+        p.modSource[0] = (float) source;
+        p.modDest[0] = (float) dest;
+        p.modAmount[0] = amount;
+
+        Engine engine;
+        engine.prepare (48000.0);
+        engine.setParams (p);
+        engine.noteOn (note, velocity);
+        return render (engine, 60000);
+    };
+
+    auto tailFrequency = [] (const StereoBuffer& buffer)
+    {
+        std::vector<float> tail (buffer.left.begin() + 12000, buffer.left.end());
+        return estimateFrequency (tail, 48000.0);
+    };
+
+    const auto reference = renderNote (57, modsrc::off, moddest::off, 0.0f, 1.0f);
+    const float referenceFrequency = tailFrequency (reference);
+    CHECK_NEAR (referenceFrequency, 220.0f, 1.5f);
+
+    // Velocity -> pitch, full velocity, +0.5 depth = exactly one octave.
+    const auto pitchRouted = renderNote (57, modsrc::velocity, moddest::pitch, 0.5f, 1.0f);
+    CHECK_NEAR (tailFrequency (pitchRouted), referenceFrequency * 2.0f, 3.0f);
+
+    // Velocity -> amplitude at -1.0 must duck the voice hard.
+    const auto ampRouted = renderNote (57, modsrc::velocity, moddest::amplitude, -1.0f, 1.0f);
+    CHECK (rmsOf (ampRouted, 12000, 24000) < rmsOf (reference, 12000, 24000) * 0.35f);
+
+    // Velocity -> pan at +1.0 pushes the voice to the right edge.
+    const auto panRouted = renderNote (57, modsrc::velocity, moddest::pan, 1.0f, 1.0f);
+
+    {
+        double leftSum = 0.0, rightSum = 0.0;
+        for (int i = 20000; i < 24000; ++i)
+        {
+            leftSum += (double) panRouted.left[(size_t) i] * panRouted.left[(size_t) i];
+            rightSum += (double) panRouted.right[(size_t) i] * panRouted.right[(size_t) i];
+        }
+
+        CHECK (std::sqrt (leftSum / 4000.0) < 0.005);
+        CHECK (std::sqrt (rightSum / 4000.0) > 0.02);
+    }
+
+    // Velocity -> cutoff: a 110 Hz saw through a 300 Hz low-pass should gain
+    // substantial high-frequency energy when the route opens it four octaves.
+    {
+        auto renderSaw = [] (int source, int dest, float amount)
+        {
+            Params p = plainPatch();
+            p.vco1Level = 1.0f;
+            p.sineLevel = 0.0f;
+            p.lpfCutoff = 300.0f;
+            p.lpfRes = 0.2f;
+            p.filterEnvAmt = 0.0f;
+            p.fIl = 0.1f;
+            p.fAl = 0.1f;
+            p.fS = 0.1f;
+            p.modSource[0] = (float) source;
+            p.modDest[0] = (float) dest;
+            p.modAmount[0] = amount;
+
+            Engine engine;
+            engine.prepare (48000.0);
+            engine.setParams (p);
+            engine.noteOn (45, 1.0f);
+            return render (engine, 9600);
+        };
+
+        auto differenceEnergy = [] (const StereoBuffer& buffer)
+        {
+            double sum = 0.0;
+
+            for (int i = 4801; i < 9600; ++i)
+            {
+                const double difference = (double) buffer.left[(size_t) i]
+                                        - (double) buffer.left[(size_t) i - 1];
+                sum += difference * difference;
+            }
+
+            return std::sqrt (sum / 4799.0);
+        };
+
+        const auto dull = renderSaw (modsrc::off, moddest::off, 0.0f);
+        const auto bright = renderSaw (modsrc::velocity, moddest::cutoff, 1.0f);
+        CHECK (differenceEnergy (bright) > differenceEnergy (dull) * 3.0);
+    }
+
+    // Random -> resonance at full depth and maximum Q must stay bounded.
+    {
+        const auto resonant = renderNote (57, modsrc::random, moddest::resonance, 1.0f, 1.0f);
+        CHECK (allFinite (resonant));
+        CHECK (peakOf (resonant) < 1.01f);
+    }
+
+    // An LFO-routed pitch sweep must stay continuous and actually move.
+    {
+        Params p = plainPatch();
+        p.sineLevel = 1.0f;
+        p.vco1Level = 0.0f;
+        p.vco2Level = 0.0f;
+        p.lfoRate = 5.0f;
+        p.lfoDelay = 0.0f;
+        p.modSource[0] = (float) modsrc::lfo;
+        p.modDest[0] = (float) moddest::pitch;
+        p.modAmount[0] = 0.25f;
+
+        Engine engine;
+        engine.prepare (48000.0);
+        engine.setParams (p);
+        engine.noteOn (57, 1.0f);
+
+        const auto swept = render (engine, 48000);
+        float maxStep = 0.0f;
+
+        for (int i = 1; i < (int) swept.left.size(); ++i)
+            maxStep = std::max (maxStep, std::abs (swept.left[(size_t) i]
+                                                - swept.left[(size_t) i - 1]));
+
+        CHECK (allFinite (swept));
+        CHECK (maxStep < 0.20f);
+        CHECK (peakOf (swept) > 0.01f);
+    }
+}
+
 void testPresetsRender()
 {
     std::printf ("- every preset renders\n");
@@ -1721,6 +1953,8 @@ int main()
     testBasicRenderAndSilence();
     testPolyphonyAndStealing();
     testTuning();
+    testMicrotuning();
+    testModulationMatrix();
     testOctaveSwitch();
     testSubOscillator();
     testGlide();

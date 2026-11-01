@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Params.h"
+#include "Tuning.h"
 
 #include <memory>
 
@@ -40,6 +41,12 @@ public:
 
     void setParams (const Params& newParams);
     Params params() const;
+
+    /** Installs a microtuning. Safe to call from the message thread: the table
+        is written into an inactive slot and published atomically, so the audio
+        thread never sees a half-written scale. */
+    void setTuning (const Tuning& newTuning);
+    const Tuning& tuning() const;
 
     /** Note currently assigned to a voice slot, or -1 when the slot is idle.
         Exposed for the UI, tests and host diagnostics. */
