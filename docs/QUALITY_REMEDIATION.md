@@ -204,3 +204,64 @@ cmake --build build-tests --parallel
 | New screenshots generated locally | **BLOCKED here** | No JUCE/X11/Xvfb toolchain; CI renders them from the pushed commit |
 | Versioned GitHub Release / tag | **BLOCKED here** | No GitHub release or tag API access in this environment; CI publishes the rolling `latest` release from `main` |
 | Hardware CS-80 comparison | **OPEN** | No hardware or legal recordings available |
+
+---
+
+## Unreleased engine work (post-5.1, not yet exposed in the panel)
+
+## Q-10 — No modulation matrix
+
+- **Severity:** Medium (expressiveness; the engine only had fixed LFO routings)
+- **Root cause:** Modulation was hard-wired: LFO to pitch/PWM/filter/amplitude.
+  There was no way to route velocity, pressure, envelopes or randomness.
+- **Affected files:** `src/dsp/Params.*`, `src/dsp/Engine.cpp`,
+  `src/dsp/tests/DspTests.cpp`
+- **Correction:** Eight routing slots with ten sources (LFO, velocity, channel
+  and poly pressure, mod wheel, key track, filter and amp envelopes, per-note
+  random) and eight destinations (pitch, pulse width, cutoff, resonance,
+  amplitude, pan, drive, layer level). Amounts are bipolar; destinations are
+  smoothed per control block; pan is evaluated per chunk through the existing
+  pan glide. Slots with an off source/destination or zero depth are removed
+  before the voice loop.
+- **Acceptance:** velocity -> pitch at +0.5 is exactly one octave; amplitude
+  and pan routes change the rendered balance; cutoff routes change high-
+  frequency energy; random -> resonance at full depth stays bounded; an LFO
+  pitch sweep has no sample-step discontinuity; all 24 parameters round-trip.
+- **Verification:** `testModulationMatrix` (direct `g++` build of the committed
+  engine; CMake is not installed in this environment).
+- **Result:** PASS. 5,176 checks, 0 failures. Octave shift measured at
+  440 Hz vs 220 Hz reference; pan route leaves <0.005 RMS left and >0.02 RMS
+  right; cutoff route triples first-difference energy; peak stays <1.01.
+- **Remaining limitation:** the matrix has parameters and host automation but
+  **no panel controls yet**. It is not claimed as a shipped UI feature.
+
+## Q-11 — No microtuning
+
+- **Severity:** Medium (expressiveness / non-Western repertoire)
+- **Root cause:** Pitch was a closed-form 12-TET calculation inside the voice.
+- **Affected files:** `src/dsp/Tuning.h` (new), `src/dsp/Engine.*`,
+  `src/dsp/tests/DspTests.cpp`
+- **Correction:** A 128-note tuning table with Scala `.scl` (cents and ratio
+  intervals) and `.kbm` mapping support, published to the engine through two
+  preallocated slots and an atomic index. 12-TET at A4=440 is the default and
+  reproduces the previous frequencies exactly. Malformed files are rejected
+  without changing the active tuning.
+- **Acceptance:** default table matches 440 * 2^((n-69)/12); a five-note scale
+  is correct at the octave; a .kbm with a 432 Hz reference renders A3 at
+  216 Hz; bad input leaves 12-TET intact.
+- **Verification:** `testMicrotuning`; engine render measured at 216.0 Hz.
+- **Result:** PASS. 5,176 checks, 0 failures.
+- **Remaining limitation:** there is no file chooser or tuning panel yet, and
+  the tuning is not serialised by the plugin state. Engine-only.
+
+## Verified measurements after the engine work
+
+`cs80_analysis` was rebuilt directly with `g++ -O2` (no CMake in this
+environment). Raw output: `docs/benchmarks/v5.2-modmatrix-bench.txt`,
+`v5.2-modmatrix-alias.txt`, `v5.2-modmatrix-latency.txt`.
+
+- Latency remains 8 host samples; impulse peak at sample 8.
+- 8 voices, dual + chorus + reverb, 48 kHz/256 frames: 800 µs average,
+  15.0 % of one core, 0 allocations. That is within run-to-run variation of the
+  5.1 figure (759 µs / 14.2 %); no CPU improvement is claimed.
+- The idle path still costs 4.9 µs per callback.

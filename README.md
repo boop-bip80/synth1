@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/boop-bip80/synth1?label=latest&color=ff9d3c)](https://github.com/boop-bip80/synth1/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-4%2C007-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-5%2C176-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E dual-channel panel">
@@ -270,7 +270,7 @@ src/dsp/            Pure C++17 engine — no JUCE, fully unit-testable
                       ensemble, stereo-pre-delay plate, transparent limiter
   Presets.*           36 factory patches
   Oscillator.h        band-limited wavetable mip maps + oscillators
-  tests/              4,007 headless assertions, FFT alias analysis
+  tests/              5,176 headless assertions, FFT alias analysis
 
 src/plugin/         JUCE wrapper
   PluginProcessor.*   APVTS, presets, MIDI dispatch, state persistence
@@ -334,6 +334,10 @@ Linux and Windows VST3 builds with pluginval
   Windows SmartScreen will warn.
 - The GUI still scales uniformly below its 1440×960 design size instead of
   switching to a second compact layout.
+- An eight-slot modulation matrix and Scala `.scl`/`.kbm` microtuning are
+  implemented and tested in the engine, but they have **no panel controls and
+  no plugin-state persistence yet**, so they are not part of the 5.1 release.
+  Do not expect to find them in the UI.
 
 ## License
 

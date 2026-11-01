@@ -95,3 +95,24 @@ sample-rate-scaled voice path.
   real-world glitch behaviour and is retained only for regression comparison.
 - No Windows or macOS timing was measured in this environment. CI builds and
   validates those platforms, but publishes no timing claims.
+
+## Post-5.1 engine run (modulation matrix + tuning tables)
+
+Built directly with `g++ -O2` against the same headless engine on the same VM.
+Raw output: [`benchmarks/v5.2-modmatrix-bench.txt`](benchmarks/v5.2-modmatrix-bench.txt).
+
+| Scenario (48 kHz, 256 frames) | 5.1 avg | New avg | New CPU | Allocations |
+| --- | --- | --- | --- | --- |
+| Idle | 4.8 µs | 4.9 µs | 0.09 % | 0 |
+| 1 voice | 49.9 µs | 55.4 µs | 1.04 % | 0 |
+| 4 voices | 184.3 µs | 199.4 µs | 3.74 % | 0 |
+| 8 voices | 351.0 µs | 384.8 µs | 7.22 % | 0 |
+| 8 voices, dual + chorus + reverb | 759.0 µs | 800.4 µs | 15.01 % | 0 |
+| 8 voices, high resonance + drive | 351.1 µs | 379.2 µs | 7.11 % | 0 |
+
+The new run is about 5 % slower across the board, including idle, which does not
+execute any new routing work. That points to machine/run variation rather than a
+matrix cost. No performance claim is made either way; the target of 0.25x
+real-time for the full patch (measured 0.15x) is still met with room to spare.
+Latency is unchanged at 8 samples. Aliasing numbers are unchanged because the
+new features do not touch the oscillator or saturation path.

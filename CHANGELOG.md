@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — modulation matrix and microtuning (engine only)
+
+- Eight-slot modulation matrix in the engine: LFO, velocity, channel and poly
+  pressure, mod wheel, key track, filter/amp envelopes and per-note random to
+  pitch, pulse width, cutoff, resonance, amplitude, pan, drive and layer level.
+  Destinations are smoothed; unused slots cost nothing.
+- Scala `.scl` and `.kbm` microtuning in the engine, with 12-TET as the
+  bit-compatible default. Tables are published to the audio thread atomically.
+- The suite grew from 4,007 to 5,176 checks, including octave-accurate pitch
+  routing, pan/amplitude/cutoff routing, resonance stability, Scala parsing and
+  a 432 Hz keyboard mapping that renders A3 at 216 Hz.
+- **Not shipped yet:** neither feature has panel controls or plugin-state
+  persistence. They are reachable from host automation (matrix parameters) or
+  engine API only. The 5.1 panel is unchanged and no new release was published
+  from this work.
+
 ## 5.1.0 — DSP validation and reliability overhaul
 
 ### Sound

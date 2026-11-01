@@ -227,3 +227,42 @@ introduced.
 - **Not implemented in 5.1:** a user preset manager with import/export, a
   modulation matrix, microtuning/Scala import, and MPE zone handling. These
   remain open in the quality register and are not claimed in the README.
+
+## 12. Modulation matrix and microtuning (unreleased engine work)
+
+Both features were verified with the headless suite built directly from the
+committed sources. CMake and the JUCE/X11 toolchain are not available in this
+environment, so the plugin UI was not built or rendered here.
+
+### Modulation matrix
+
+Eight slots, each with a source, destination and bipolar amount. The routing
+test checks the whole signal path, not just parameter storage:
+
+| Test | Expectation | Measured |
+| --- | --- | --- |
+| Velocity -> pitch, depth +0.5, full velocity | one octave | 440 Hz from a 220 Hz reference |
+| Velocity -> amplitude, depth -1.0 | voice is ducked | below 35 % of reference RMS |
+| Velocity -> pan, depth +1.0 | hard right | left RMS < 0.005, right RMS > 0.02 |
+| Velocity -> cutoff, depth +1.0 | brighter | first-difference energy > 3x |
+| Random -> resonance, depth +1.0 | bounded | finite, peak < 1.01 |
+| LFO -> pitch, 5 Hz, depth +0.25 | continuous sweep | max sample step < 0.20 |
+
+Unused slots are filtered out before the voice loop, so an empty matrix costs
+one source/destination/depth comparison per slot per chunk.
+
+### Microtuning
+
+The tuning table is built on the message thread and published through an
+atomic index; the callback only reads 128 doubles. Verification:
+
+| Test | Result |
+| --- | --- |
+| Default 12-TET | A4 = 440.000 Hz, C4 = 261.626 Hz |
+| Fractional note interpolation | matches the closed-form 12-TET value |
+| Five-note Scala scale | C, D, E, G, A and the octave at the expected ratios |
+| `.kbm` with 432 Hz reference | A4 = 432 Hz, A3 renders at 216.0 Hz |
+| Malformed `.scl` | rejected; the previous tuning is unchanged |
+
+**Not verified:** the panel has no matrix editor or tuning file chooser yet;
+these controls are not claimed as shipped.
