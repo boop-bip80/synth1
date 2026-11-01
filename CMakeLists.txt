@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(CS80E VERSION 5.0.0 LANGUAGES C CXX)
+project(CS80E VERSION 5.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,6 +18,10 @@ option(CS80_BUILD_TOOLS "Build the offline screenshot/demo renderer" ON)
 enable_testing()
 
 add_subdirectory(src/dsp)
+
+if(CS80_BUILD_TESTS)
+    add_subdirectory(tools/analysis)
+endif()
 
 if(CS80_BUILD_PLUGIN)
     include(cmake/JUCE.cmake)

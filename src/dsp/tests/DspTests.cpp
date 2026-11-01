@@ -1,18 +1,49 @@
 // Headless test suite for the CS-80 engine. No JUCE, no audio device, no
 // display: this is the fast feedback loop that also runs on every CI platform.
 
+#include "../Dsp.h"
 #include "../Engine.h"
 #include "../Presets.h"
+#include "Spectrum.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <new>
 #include <set>
 #include <string>
 #include <vector>
 
 using namespace cs80;
+
+//==============================================================================
+// Allocation tracking. The audio callback must not touch the heap after
+// prepare(); this replaces the global allocator so the test can prove it.
+namespace
+{
+std::atomic<long> gAllocationCount { 0 };
+std::atomic<bool> gTrackAllocations { false };
+} // namespace
+
+void* operator new (std::size_t size)
+{
+    if (gTrackAllocations.load (std::memory_order_relaxed))
+        gAllocationCount.fetch_add (1, std::memory_order_relaxed);
+
+    if (auto* p = std::malloc (size == 0 ? 1 : size))
+        return p;
+
+    throw std::bad_alloc();
+}
+
+void operator delete (void* p) noexcept { std::free (p); }
+void operator delete (void* p, std::size_t) noexcept { std::free (p); }
+void* operator new[] (std::size_t size) { return operator new (size); }
+void operator delete[] (void* p) noexcept { std::free (p); }
+void operator delete[] (void* p, std::size_t) noexcept { std::free (p); }
 
 namespace
 {
@@ -270,10 +301,15 @@ void testBasicRenderAndSilence()
     dry.space = 0.0f;
     engine.setParams (dry);
     engine.allNotesOff (true);
-    (void) render (engine, 4800); // let the DC blocker settle after the hard kill
+
+    // One second lets the ensemble / plate wet gains fade out and the DC
+    // blocker recover from the hard kill. Their tails are intentionally
+    // audible while fading; the steady state must be silent.
+    (void) render (engine, 48000, 128);
     auto after = render (engine, 4800);
+    std::printf ("    residual peak after kill+1s: %.9f\n", peakOf (after));
     CHECK (engine.activeVoiceCount() == 0);
-    CHECK (peakOf (after) < 1.0e-4f);
+    CHECK (peakOf (after) < 1.0e-5f);
 }
 
 void testPolyphonyAndStealing()
@@ -896,42 +932,717 @@ void testBlockSizeConsistency()
     CHECK (relative < 0.02);
 }
 
-void testVoiceStealingIsSmooth()
+float maxSampleStep (const StereoBuffer& buffer, int from, int to)
 {
-    std::printf ("- voice stealing stays click free\n");
+    from = std::max (1, from);
+    to = std::min (to, (int) buffer.left.size());
+    float worst = 0.0f;
+
+    for (int i = from; i < to; ++i)
+    {
+        worst = std::max (worst, std::abs (buffer.left[(size_t) i] - buffer.left[(size_t) (i - 1)]));
+        worst = std::max (worst, std::abs (buffer.right[(size_t) i] - buffer.right[(size_t) (i - 1)]));
+    }
+
+    return worst;
+}
+
+float percentileStep (const StereoBuffer& buffer, int from, int to, float percentile)
+{
+    std::vector<float> deltas;
+    from = std::max (1, from);
+    to = std::min (to, (int) buffer.left.size());
+
+    for (int i = from; i < to; ++i)
+    {
+        deltas.push_back (std::abs (buffer.left[(size_t) i] - buffer.left[(size_t) (i - 1)]));
+        deltas.push_back (std::abs (buffer.right[(size_t) i] - buffer.right[(size_t) (i - 1)]));
+    }
+
+    if (deltas.empty())
+        return 0.0f;
+
+    std::sort (deltas.begin(), deltas.end());
+    const size_t index = std::min (deltas.size() - 1, (size_t) ((double) deltas.size() * percentile));
+    return deltas[index];
+}
+
+int liveVoiceCount (const Engine& engine)
+{
+    int count = 0;
+
+    for (int i = 0; i < Engine::kNumVoices; ++i)
+        if (engine.voiceIsActive (i))
+            ++count;
+
+    return count;
+}
+
+bool anyVoiceHoldsNote (const Engine& engine, int note)
+{
+    for (int i = 0; i < Engine::kNumVoices; ++i)
+        if (engine.voiceNote (i) == note)
+            return true;
+
+    return false;
+}
+
+void testLatencyAndDecimator()
+{
+    std::printf ("- decimator group delay and reported latency\n");
+
+    // The impulse response peak must land exactly on the latency the engine
+    // reports, otherwise host PDC and offline bounces are misaligned.
+    Decimator2x decimator;
+    decimator.prepare();
+    decimator.reset();
+
+    std::vector<float> response;
+
+    for (int n = 0; n < 32; ++n)
+    {
+        decimator.pushOdd (0.0f);
+        response.push_back (decimator.pushEven (n == 0 ? 1.0f : 0.0f));
+    }
+
+    int peakIndex = 0;
+    float peak = 0.0f;
+
+    for (int i = 0; i < (int) response.size(); ++i)
+    {
+        if (std::abs (response[(size_t) i]) > peak)
+        {
+            peak = std::abs (response[(size_t) i]);
+            peakIndex = i;
+        }
+    }
+
+    // A constant input must come out at unity: the half-band kernel is
+    // normalised over both phases, so the centre tap alone is 0.5.
+    Decimator2x dc;
+    dc.prepare();
+    dc.reset();
+    float dcOut = 0.0f;
+
+    for (int n = 0; n < 64; ++n)
+    {
+        dc.pushOdd (1.0f);
+        dcOut = dc.pushEven (1.0f);
+    }
+
+    std::printf ("    impulse peak host sample %d (amplitude %.3f), reported %d, DC gain %.5f\n",
+                 peakIndex, peak, Engine::latencySamples(), dcOut);
+
+    CHECK (Engine::latencySamples() == Decimator2x::latencyHostSamples());
+    CHECK (peakIndex == Engine::latencySamples());
+    CHECK_NEAR (dcOut, 1.0f, 0.01f);
+    CHECK (Engine::oversamplingFactor() == 2.0);
+}
+
+void testVoiceStealingPolicyAndContinuity()
+{
+    std::printf ("- voice stealing policy and continuity (8 voices + 1)\n");
 
     Engine engine;
     engine.prepare (48000.0);
+
     Params p = plainPatch();
     p.lpfCutoff = 450.0f;
     p.aA = 0.02f;
     p.aD = 1.0f;
-    p.aS = 1.0f;
-    p.aR = 2.0f;
+    p.aS = 0.95f;
+    p.aR = 1.0f;
     engine.setParams (p);
 
-    // One held voice makes the steal path measurable in isolation: the new
-    // note takes over the same voice, and the declick ramp should hand over
-    // at the old sample value with no edge.
-    engine.noteOn (48, 0.9f);
+    const int notes[8] = { 48, 50, 52, 53, 55, 57, 59, 60 };
+
+    for (int note : notes)
+        engine.noteOn (note, 0.85f);
+
+    (void) render (engine, 128, 64);
+
+    CHECK (engine.activeVoiceCount() == Engine::kNumVoices);
+    CHECK (liveVoiceCount (engine) == Engine::kNumVoices);
+
+    for (int i = 0; i < 8; ++i)
+        CHECK (engine.voiceNote (i) == notes[i]);
 
     const auto settled = render (engine, 24000, 64);
+    const float steady = percentileStep (settled, (int) settled.left.size() - 4096,
+                                         (int) settled.left.size(), 0.999f);
 
-    std::vector<float> deltas;
+    // A ninth note must steal the oldest voice, not add a ninth.
+    engine.noteOn (72, 0.9f);
 
-    for (int i = (int) settled.left.size() - 1024; i < (int) settled.left.size(); ++i)
-        deltas.push_back (std::abs (settled.left[(size_t) i] - settled.left[(size_t) (i - 1)]));
+    CHECK (engine.activeVoiceCount() == Engine::kNumVoices);
+    CHECK (engine.voiceNote (0) == 72);
+    CHECK (! anyVoiceHoldsNote (engine, 48));
 
-    std::sort (deltas.begin(), deltas.end());
-    const float typical = deltas[deltas.size() / 2];
+    const auto after = render (engine, 1024, 64);
+    const float boundaryStep = std::abs (after.left[0] - settled.left.back());
+    const float earlyStep = maxSampleStep (after, 0, 96);
+    const float lateStep = maxSampleStep (after, 256, 1024);
 
-    engine.noteOn (79, 0.9f);
-    const auto after = render (engine, 64, 64);
-    const float step = std::abs (after.left[0] - settled.left.back());
+    std::printf ("    steady p99.9 step %.5f, boundary %.5f, early %.5f, late %.5f\n",
+                 steady, boundaryStep, earlyStep, lateStep);
 
-    std::printf ("    steady sample step %.5f, steal step %.5f\n", typical, step);
     CHECK (allFinite (after));
-    CHECK (step < typical * 2.0f);
+    CHECK (boundaryStep < std::max (steady * 3.0f, 0.004f));
+    CHECK (earlyStep < lateStep * 2.0f + 0.004f);
+
+    // A note-off for the note that was stolen must not release the new note.
+    engine.noteOff (48);
+    (void) render (engine, 256, 64);
+    CHECK (engine.activeVoiceCount() == Engine::kNumVoices);
+    CHECK (engine.voiceNote (0) == 72);
+
+    // The new note's own note-off must work.
+    engine.noteOff (72);
+    (void) render (engine, 48000, 256);
+    CHECK (liveVoiceCount (engine) == 7);
+}
+
+void testStealDuringEveryEnvelopePhase()
+{
+    std::printf ("- voice stealing during attack, decay, sustain and release\n");
+
+    struct Phase
+    {
+        const char* name;
+        float waitSeconds;
+        bool releaseFirst;
+    };
+
+    const Phase phases[] = {
+        { "attack", 0.004f, false },
+        { "decay", 0.05f, false },
+        { "sustain", 0.60f, false },
+        { "release", 0.02f, true },
+    };
+
+    for (const auto& phase : phases)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = plainPatch();
+        p.aA = 0.06f;
+        p.aD = 0.35f;
+        p.aS = 0.7f;
+        p.aR = 1.6f;
+        p.lpfCutoff = 700.0f;
+        engine.setParams (p);
+
+        for (int i = 0; i < 8; ++i)
+            engine.noteOn (40 + i * 3, 0.8f);
+
+        (void) render (engine, (int) (phase.waitSeconds * 48000.0f), 64);
+
+        if (phase.releaseFirst)
+            for (int i = 0; i < 8; ++i)
+                engine.noteOff (40 + i * 3);
+
+        const auto before = render (engine, 2048, 64);
+        engine.noteOn (84, 0.9f);
+        const auto during = render (engine, 512, 64);
+
+        const float steady = percentileStep (before, 0, 2048, 0.999f);
+        const float boundary = std::abs (during.left[0] - before.left.back());
+        const float early = maxSampleStep (during, 0, 96);
+        const float late = maxSampleStep (during, 256, 512);
+
+        std::printf ("    %-8s steady %.5f boundary %.5f early %.5f\n",
+                     phase.name, steady, boundary, early);
+
+        CHECK (allFinite (during));
+        CHECK (engine.activeVoiceCount() <= Engine::kNumVoices);
+        CHECK (boundary < std::max (steady * 4.0f, 0.01f));
+        CHECK (early < late * 2.5f + 0.01f);
+    }
+}
+
+void testSustainPedalStealing()
+{
+    std::printf ("- sustain pedal + stealing does not strand voices\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+
+    Params p = plainPatch();
+    p.aR = 0.05f;
+    p.aS = 0.9f;
+    engine.setParams (p);
+
+    engine.setSustainPedal (true);
+
+    for (int i = 0; i < 8; ++i)
+        engine.noteOn (45 + i, 0.8f);
+
+    for (int i = 0; i < 8; ++i)
+        engine.noteOff (45 + i);
+
+    (void) render (engine, 4096, 64);
+    CHECK (engine.activeVoiceCount() == 8);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        engine.noteOn (76 + i, 0.85f);
+        (void) render (engine, 512, 64);
+    }
+
+    CHECK (engine.activeVoiceCount() == 8);
+    CHECK (allFinite (render (engine, 2048, 64)));
+
+    engine.setSustainPedal (false);
+
+    // The four new keys are still down; they must release normally after the
+    // pedal comes up. Nothing may be left stranded by the earlier steal.
+    for (int i = 0; i < 4; ++i)
+        engine.noteOff (76 + i);
+
+    (void) render (engine, 48000 * 2, 256);
+
+    std::printf ("    voices after pedal release: %d\n", engine.activeVoiceCount());
+    CHECK (engine.activeVoiceCount() == 0);
+}
+
+void testRepeatedNotesAndRapidRetrigger()
+{
+    std::printf ("- repeated notes and rapid retriggering\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+
+    Params p = plainPatch();
+    p.aR = 0.03f;
+    p.aA = 0.01f;
+    engine.setParams (p);
+
+    for (int i = 0; i < 24; ++i)
+    {
+        engine.noteOn (60, 0.85f);
+        (void) render (engine, 96, 32);
+        engine.noteOff (60);
+        (void) render (engine, 64, 32);
+    }
+
+    CHECK (engine.activeVoiceCount() <= Engine::kNumVoices);
+    CHECK (allFinite (render (engine, 48000, 256)));
+    CHECK (engine.activeVoiceCount() == 0);
+
+    // Every one of 500 retriggers must leave exactly one voice assigned to the
+    // note, and no voice may be left hanging after the final note-off.
+    for (int i = 0; i < 500; ++i)
+    {
+        engine.noteOn (67, 0.7f);
+        (void) render (engine, 24, 24);
+        engine.noteOff (67);
+    }
+
+    (void) render (engine, 48000, 256);
+    CHECK (engine.activeVoiceCount() == 0);
+}
+
+void testStealWithDualLayersDriveAndPressure()
+{
+    std::printf ("- stealing under dual layers, drive, resonance and aftertouch\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+
+    Params p = defaultParams();
+    p.layerMode = 1.0f;
+    p.layerLevel = 0.55f;
+    p.layerDetune = 12.0f;
+    p.lpfRes = 1.0f;
+    p.hpfRes = 0.9f;
+    p.drive = 1.0f;
+    p.lpfCutoff = 380.0f;
+    p.aA = 0.01f;
+    p.aS = 0.9f;
+    p.aR = 0.8f;
+    engine.setParams (p);
+
+    for (int i = 0; i < 8; ++i)
+        engine.noteOn (36 + i * 4, 0.9f);
+
+    (void) render (engine, 9600, 64);
+
+    engine.setPolyPressure (36, 1.0f);
+    engine.setChannelPressure (0.9f);
+    engine.setModWheel (1.0f);
+
+    const auto before = render (engine, 2048, 64);
+    engine.noteOn (79, 1.0f);
+    const auto during = render (engine, 4096, 64);
+
+    const float steady = percentileStep (before, 0, 2048, 0.999f);
+    const float boundary = std::abs (during.left[0] - before.left.back());
+
+    std::printf ("    dual/drive steady %.5f, boundary %.5f\n", steady, boundary);
+
+    CHECK (allFinite (during));
+    CHECK (peakOf (during) <= 1.0f);
+    CHECK (boundary < std::max (steady * 5.0f, 0.02f));
+
+    // Poly pressure addressed to the stolen note must not revive it.
+    engine.setPolyPressure (36, 1.0f);
+    engine.noteOff (36);
+    (void) render (engine, 1024, 64);
+    CHECK (! anyVoiceHoldsNote (engine, 36));
+    CHECK (engine.activeVoiceCount() == Engine::kNumVoices);
+}
+
+void testEffectBypassIsSmooth()
+{
+    std::printf ("- chorus and reverb bypass are smooth and leave no stale tail\n");
+
+    // Chorus: enable while a note is sounding, disable, let everything go
+    // silent, then re-enable. A frozen delay line would burst stale audio here.
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = defaultParams();
+        p.ensemble = 0.8f;
+        p.space = 0.0f;
+        p.aR = 0.01f;
+        engine.setParams (p);
+        engine.noteOn (60, 0.9f);
+
+        (void) render (engine, 24000, 128);
+        p.ensemble = 0.0f;
+        engine.setParams (p);
+        (void) render (engine, 48000, 128);
+        engine.allNotesOff (true);
+        (void) render (engine, 96000, 256);
+
+        p.ensemble = 0.8f;
+        engine.setParams (p);
+        const auto burst = render (engine, 4800, 128);
+
+        std::printf ("    chorus re-enable peak %.6f, max step %.6f\n",
+                     peakOf (burst), maxSampleStep (burst, 1, 4800));
+
+        CHECK (peakOf (burst) < 0.002f);
+        CHECK (maxSampleStep (burst, 1, 4800) < 0.002f);
+    }
+
+    // Reverb: a full tail, then a silent buffer, then mix back up.
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = defaultParams();
+        p.space = 0.9f;
+        p.ensemble = 0.0f;
+        p.aR = 0.01f;
+        engine.setParams (p);
+        engine.noteOn (60, 0.9f);
+
+        (void) render (engine, 24000, 128);
+        p.space = 0.0f;
+        engine.setParams (p);
+        (void) render (engine, 48000, 128);
+        engine.allNotesOff (true);
+        (void) render (engine, 48000 * 3, 256);
+
+        p.space = 0.9f;
+        engine.setParams (p);
+        const auto burst = render (engine, 4800, 128);
+
+        std::printf ("    reverb re-enable peak %.6f, max step %.6f\n",
+                     peakOf (burst), maxSampleStep (burst, 1, 4800));
+
+        CHECK (peakOf (burst) < 0.002f);
+        CHECK (maxSampleStep (burst, 1, 4800) < 0.002f);
+    }
+
+    // Toggling the ensemble on while a chord sounds must not click.
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = defaultParams();
+        p.ensemble = 0.0f;
+        p.space = 0.0f;
+        engine.setParams (p);
+
+        for (int note : { 48, 55, 60, 64 })
+            engine.noteOn (note, 0.8f);
+
+        const auto before = render (engine, 24000, 128);
+        p.ensemble = 0.9f;
+        engine.setParams (p);
+        const auto during = render (engine, 4800, 128);
+
+        const float steady = percentileStep (before, 12000, 24000, 0.999f);
+        const float edge = maxSampleStep (during, 0, 256);
+        std::printf ("    chorus toggled live: steady %.5f, edge %.5f\n", steady, edge);
+
+        CHECK (edge < steady * 4.0f + 0.01f);
+        CHECK (allFinite (during));
+    }
+}
+
+void testRealtimeAllocations()
+{
+    std::printf ("- audio callback performs zero heap allocations\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    engine.prepare (44100.0); // sample-rate change must also be allocation free
+    engine.setParams (defaultParams());
+
+    const int blockSize = 128;
+    std::vector<float> left ((size_t) blockSize, 0.0f), right ((size_t) blockSize, 0.0f);
+
+    engine.noteOn (60, 0.8f);
+    (void) engine.process (left.data(), right.data(), blockSize);
+
+    gAllocationCount.store (0);
+    gTrackAllocations.store (true);
+
+    for (int block = 0; block < 400; ++block)
+    {
+        engine.process (left.data(), right.data(), blockSize);
+
+        if (block == 20)  engine.noteOn (67, 0.9f);
+        if (block == 40)  engine.setPolyPressure (67, 0.7f);
+        if (block == 60)  engine.setChannelPressure (0.5f);
+        if (block == 80)  engine.setModWheel (0.9f);
+        if (block == 100) engine.pitchBend (0.4f);
+        if (block == 120) engine.setSustainPedal (true);
+        if (block == 140) engine.noteOff (60);
+        if (block == 160) engine.setSustainPedal (false);
+        if (block == 180) engine.noteOn (72, 0.7f);
+        if (block == 200) engine.setParams (defaultParams());
+        if (block == 220) engine.noteOff (72);
+        if (block == 240) engine.setParams (plainPatch());
+        if (block == 300) engine.allNotesOff (false);
+        if (block == 360) engine.allNotesOff (true);
+    }
+
+    gTrackAllocations.store (false);
+    const long allocations = gAllocationCount.load();
+
+    std::printf ("    allocations during 400 callbacks: %ld\n", allocations);
+    CHECK (allocations == 0);
+}
+
+void testAliasingTargets()
+{
+    std::printf ("- aliasing stays below the documented thresholds\n");
+
+    struct Case
+    {
+        const char* name;
+        int note;
+        float thresholdDb;
+        int setup;
+    };
+
+    // setup: 0 clean saw, 1 narrow pulse, 2 max brightness, 3 very low saw
+    const Case cases[] = {
+        { "clean saw A2", 45, -80.0f, 0 },
+        { "clean saw C6", 84, -65.0f, 0 },
+        { "narrow pulse C4", 60, -65.0f, 1 },
+        { "max brightness C5", 72, -60.0f, 2 },
+        { "sub saw C1", 24, -80.0f, 3 },
+    };
+
+    for (const auto& testCase : cases)
+    {
+        Engine engine;
+        engine.prepare (48000.0);
+
+        Params p = plainPatch();
+        p.lpfCutoff = 9000.0f;
+        p.drive = 0.15f;
+        p.masterDb = -12.0f;
+        p.vco1Detune = 0.0f;
+        p.vco2Detune = 0.0f;
+
+        if (testCase.setup == 1)
+        {
+            p.vco1Level = 0.0f;
+            p.vco2Level = 1.0f;
+            p.vco2Pw = 0.05f;
+        }
+        else if (testCase.setup == 2)
+        {
+            p.drive = 1.0f;
+            p.vco2Level = 1.0f;
+            p.lpfCutoff = 16000.0f;
+            p.brilliance = 1.0f;
+        }
+
+        engine.setParams (p);
+        engine.noteOn (testCase.note, 0.9f);
+
+        const int total = 48000 * 2;
+        const auto buffer = render (engine, total, 256);
+
+        std::vector<float> window (buffer.left.end() - 65536, buffer.left.end());
+        const double f0 = 440.0 * std::pow (2.0, ((double) testCase.note - 69.0) / 12.0);
+        const auto report = cs80test::analyseAliasing (window, 48000.0, f0);
+
+        std::printf ("    %-18s worst alias %7.1f dB, energy %7.1f dB\n",
+                     testCase.name, report.worstAliasDb, report.aliasEnergyDb);
+
+        CHECK (report.worstAliasDb < (double) testCase.thresholdDb);
+        CHECK (allFinite (buffer));
+    }
+}
+
+void testFilterUnitResponse()
+{
+    std::printf ("- state-variable filter response, resonance and stability\n");
+
+    constexpr double sampleRate = 48000.0;
+
+    auto gainAt = [] (float cutoff, float q, double frequency)
+    {
+        SVF filter;
+        filter.reset();
+        filter.setCoefficients (sampleRate, cutoff, q);
+
+        double sum = 0.0;
+        constexpr int settle = 24000;
+        constexpr int measure = 24000;
+
+        for (int i = 0; i < settle + measure; ++i)
+        {
+            const float input = (float) std::sin (2.0 * cs80test::kPi * frequency
+                                                  * (double) i / sampleRate);
+            const float out = filter.lowpass (input, 0.0f);
+
+            if (i >= settle)
+                sum += (double) out * out;
+        }
+
+        return std::sqrt (sum / measure) * std::sqrt (2.0);
+    };
+
+    const float atCutoff = (float) gainAt (1000.0f, 0.707f, 1000.0);
+    const float belowCutoff = (float) gainAt (1000.0f, 0.707f, 100.0);
+    const float aboveCutoff = (float) gainAt (1000.0f, 0.707f, 8000.0);
+    const float resonant = (float) gainAt (1000.0f, 14.0f, 1000.0);
+
+    std::printf ("    gain below %.3f, at cutoff %.3f, above %.4f, resonant %.2f\n",
+                 belowCutoff, atCutoff, aboveCutoff, resonant);
+
+    CHECK (std::abs (belowCutoff - 1.0f) < 0.05f);
+    CHECK (std::abs (atCutoff - 0.707f) < 0.06f);
+    CHECK (aboveCutoff < 0.05f);
+    CHECK (resonant > 6.0f);
+
+    // Every supported rate, extreme cutoff and high Q must stay finite and
+    // bounded; a resonant filter that explodes would poison the whole voice.
+    bool stable = true;
+
+    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 })
+    {
+        SVF filter;
+        filter.reset();
+        filter.setCoefficients (rate, 20.0f, 40.0f);
+
+        float peak = 0.0f;
+
+        for (int i = 0; i < 48000; ++i)
+        {
+            const float cutoff = 20.0f * std::exp2 (10.0f * (float) (i % 4800) / 4800.0f);
+            filter.setCoefficients (rate, cutoff, 40.0f);
+            const float out = filter.lowpass (i == 0 ? 1.0f : 0.0f, 3.0f);
+            peak = std::max (peak, std::abs (out));
+
+            if (! std::isfinite (out))
+                stable = false;
+        }
+
+        if (peak > 8.0f)
+            stable = false;
+    }
+
+    CHECK (stable);
+}
+
+void testEnvelopeTiming()
+{
+    std::printf ("- envelope segment timing\n");
+
+    Envelope envelope;
+    envelope.prepare (48000.0);
+    envelope.setTimes (0.10f, 0.20f, 0.30f);
+    envelope.setLevels (1.0f, 0.5f);
+    envelope.trigger (0.0f);
+
+    int attackSamples = 0;
+
+    while (envelope.getValue() < 0.999f && attackSamples < 48000)
+    {
+        envelope.process();
+        ++attackSamples;
+    }
+
+    int decaySamples = 0;
+
+    while (envelope.getValue() > 0.501f && decaySamples < 48000)
+    {
+        envelope.process();
+        ++decaySamples;
+    }
+
+    envelope.release();
+    int releaseSamples = 0;
+
+    while (envelope.isActive() && releaseSamples < 48000 * 2)
+    {
+        envelope.process();
+        ++releaseSamples;
+    }
+
+    const float attackMs = (float) attackSamples / 48.0f;
+    const float decayMs = (float) decaySamples / 48.0f;
+    const float releaseMs = (float) releaseSamples / 48.0f;
+
+    std::printf ("    attack %.1f ms, decay %.1f ms, release %.1f ms\n",
+                 attackMs, decayMs, releaseMs);
+
+    CHECK (std::abs (attackMs - 100.0f) < 4.0f);
+    CHECK (std::abs (decayMs - 200.0f) < 8.0f);
+    CHECK (std::abs (releaseMs - 300.0f) < 12.0f);
+    CHECK (! envelope.isActive());
+}
+
+void testSampleRateChanges()
+{
+    std::printf ("- repeated prepare and sample-rate changes\n");
+
+    Engine engine;
+    bool finite = true;
+    bool tuned = true;
+
+    for (double rate : { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0, 48000.0 })
+    {
+        engine.prepare (rate);
+        engine.setParams (plainPatch());
+        engine.noteOn (69, 1.0f);
+
+        const auto buffer = render (engine, (int) (rate * 0.4), 128);
+        finite = finite && allFinite (buffer);
+
+        const float measured = estimateFrequency (buffer.left, rate);
+        std::printf ("    %.0f Hz -> %.1f Hz\n", rate, measured);
+        tuned = tuned && std::abs (measured - 440.0f) < 440.0f * 0.03f;
+
+        engine.allNotesOff (true);
+        (void) render (engine, 512, 128);
+    }
+
+    CHECK (finite);
+    CHECK (tuned);
+    CHECK (engine.sampleRate() == 48000.0);
 }
 
 void testVelocityOpensFilter()
@@ -1028,7 +1739,18 @@ int main()
     testScopeAndRetrigger();
     testAftertouch();
     testBlockSizeConsistency();
-    testVoiceStealingIsSmooth();
+    testLatencyAndDecimator();
+    testVoiceStealingPolicyAndContinuity();
+    testStealDuringEveryEnvelopePhase();
+    testSustainPedalStealing();
+    testRepeatedNotesAndRapidRetrigger();
+    testStealWithDualLayersDriveAndPressure();
+    testEffectBypassIsSmooth();
+    testRealtimeAllocations();
+    testAliasingTargets();
+    testFilterUnitResponse();
+    testEnvelopeTiming();
+    testSampleRateChanges();
     testVelocityOpensFilter();
     testPresetsRender();
 
