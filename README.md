@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/boop-bip80/synth1?label=latest&color=ff9d3c)](https://github.com/boop-bip80/synth1/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-2%2C652-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-3%2C499-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E dual-channel panel">
@@ -19,19 +19,18 @@ a dedicated ring carrier, a resonant high-pass into a resonant low-pass, the
 CS-80's two-level filter envelope, polyphonic aftertouch, polyphonic portamento
 and a spring-loaded pitch ribbon.
 
-Version 3.0 turns the single voice path into the real CS-80 architecture: **two
-complete channel cards per note**, with independent oscillator, filter,
-envelope and pan offsets. Channel II can run as a thick dual layer, as a silent
-single-channel voice, or as a keyboard split. The ring modulator now has its own
-audio-rate carrier and speed control, the keybed is a 61-key poly-touch
-keyboard, the plate has a true stereo pre-delay, and the output limiter is
-transparent until the last fraction of a decibel. The factory bank has grown to
-24 patches.
+Version 4.0 is a ground-up sound and surface rebuild. The CS-80's sine path is
+now a first-class mix control that bypasses the VCF and feeds the VCA directly,
+adding weight and body beneath the brass. A dedicated Initial Bend ("Twang")
+control reproduces the CS-80's velocity-driven pitch snap at note-on. The two
+channel cards drift independently, the VCA saturates gently, resonance is
+gain-compensated, the ensemble is a four-tap BBD, and the plate uses four
+slowly modulated allpasses. The factory bank has grown to 32 patches.
 
-The entire panel is painted in code — brushed graphite, walnut cheeks, cream
-silkscreen, ivory fader caps, a chrome badge, warm amber LEDs, a dual-trace
-phosphor scope and a bronze ribbon controller. No bitmap skin, no external
-editor dependency.
+The entire panel was repainted in code — deep graphite, figured walnut cheeks,
+brass rails, section-coloured fader caps and header lights, a chrome badge, warm
+amber LEDs, a dual-trace phosphor scope and a bronze ribbon controller. No bitmap
+skin, no external editor dependency.
 
 ---
 
@@ -44,7 +43,7 @@ The links below always point at the newest successful build on `main`:
 | **Linux** | [CS-80E-linux.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-linux.zip) | VST3 + Standalone |
 | **macOS** | [CS-80E-macos.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-macos.zip) | VST3 + AU + Standalone |
 | **Windows** | [CS-80E-windows.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-windows.zip) | VST3 + Standalone |
-| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-previews.zip) | nine PNGs + demo WAV |
+| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-previews.zip) | ten PNGs + demo WAV |
 | **Build manifest** | [latest.json](https://github.com/boop-bip80/synth1/releases/latest/download/latest.json) | JSON |
 | **Checksums** | [SHA256SUMS.txt](https://github.com/boop-bip80/synth1/releases/latest/download/SHA256SUMS.txt) | SHA-256 |
 
@@ -71,19 +70,23 @@ The CI builds are unsigned. On macOS, right-click the plugin/app and choose
 | | |
 | --- | --- |
 | ![Vangelis Lead](docs/screenshots/02-vangelis-lead.png) | ![Neon Pads](docs/screenshots/03-neon-pads.png) |
-| ![Brass Stab](docs/screenshots/05-brass-stab.png) | ![Blade Runner](docs/screenshots/08-blade-runner.png) |
+| ![Brass Stab](docs/screenshots/05-brass-stab.png) | ![Blade Runner](docs/screenshots/09-blade-runner.png) |
 
 <p align="center">
-  <img src="docs/screenshots/04-preset-library.png" width="100%" alt="CS-80E three-column preset library">
+  <img src="docs/screenshots/04-preset-library.png" width="100%" alt="CS-80E four-column preset library">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/06-filter-closeup.png" width="49%" alt="Filter section detail">
-  <img src="docs/screenshots/09-channel-two.png" width="49%" alt="CS-80E Channel II and LFO detail">
+  <img src="docs/screenshots/06-filter-closeup.png" width="49%" alt="Filter and filter-envelope detail">
+  <img src="docs/screenshots/07-vca-sine.png" width="49%" alt="Sine mix and VCA envelope detail">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/07-ribbon-keybed.png" width="100%" alt="Lower panel, ribbon and 61-key keybed detail">
+  <img src="docs/screenshots/10-channel-two.png" width="49%" alt="CS-80E Channel II and LFO detail">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/08-ribbon-keybed.png" width="100%" alt="Lower panel, ribbon and 61-key keybed detail">
 </p>
 
 CI renders these from the real editor at up to 2× resolution. On `main` it also
@@ -96,35 +99,32 @@ latest release.
 Brass chords and aftertouch swells, rendered offline through the real processor
 by the screenshot tool.
 
-## What is new in 3.0
+## What is new in 4.0
 
-- **Two channel cards per voice.** Channel II is a complete second VCO pair,
-  sub-oscillator, ring path, HPF/LPF and envelope pair with its own level,
-  octave, detune, pulse width, filter offset, resonance, envelope scaling and
-  stereo pan. Layer it for the huge CS-80 brass and pads, run it in Single mode
-  for focused basses and plucks, or split the keybed.
-- **A real ring modulator.** The ring depth now multiplies the VCO against a
-  dedicated sine carrier with a 20–2000 Hz speed control, so the metallic,
-  clangorous side of the instrument is no longer approximated by a fixed
-  oscillator pair.
-- **A deeper keybed.** The on-screen keyboard is now 61 keys (C2–C7) with
-  velocity from the vertical touch point and per-note pressure from dragging a
-  held key. Polyphonic aftertouch opens the filter, lifts the level, adds
-  vibrato and shifts PWM.
-- **A larger, better-behaved plate.** The reverb now has a genuine stereo
-  pre-delay instead of a direct read, a smoother wet high-pass and a wider
-  stereo image.
-- **A cleaner output stage.** A stereo-linked peak limiter stays linear below
-  0.85 and only bends the final peaks, preserving transients and stereo image.
-- **A 24-patch bank** with a new split category, including Brass Ensemble,
-  Aftertouch Brass, Split Brass / Bell, Glass Cathedral, Night Runner and
-  Split Brass / Bass.
-- **A completely rebuilt panel:** 1440×960 design, dual-channel layout,
-  three-column 24-patch library, dual-trace scope, dedicated Channel II section,
-  61-key poly-touch keybed, chrome CS-80E badge and warm amber rails.
-- **Release automation:** stable per-OS download links, `latest.json`, checksums,
-  nine refreshed renders and a rolling latest release, all driven by GitHub
-  Actions.
+- **The CS-80 sine path.** A new Sine Mix fader bypasses the VCF and joins the
+  signal at the VCA, exactly where the original's sine board sits. Push it under
+  the brass for weight, or use it alone for glassy flutes and organs.
+- **Initial Bend / Twang.** The CS-80 snaps into pitch at note-on. A dedicated
+  velocity-scaled bend control now reproduces that expressive twang, with the
+  offset decaying over the first few milliseconds of the note.
+- **More alive, card by card.** Each channel card gets its own slow drift, and
+  cutoff drift is independent of oscillator drift, so stacked layers move
+  against each other instead of locking into one static composite.
+- **A warmer, denser output.** The VCA saturates gently, resonance is gain
+  compensated, the LPF drive stage is smoother, and the ensemble is a four-tap
+  BBD with wider stereo movement.
+- **A better plate.** Four allpasses with slowly modulated comb reads, 0.862
+  feedback and 0.23 damping produce a longer, less metallic tail.
+- **A 32-patch bank.** The library gains Chariots Brass, Love Theme, Glass Harp,
+  Deep Choir, Brass Section, Ribbon Glide, Split Pad / Bell and Aftertouch
+  Strings, alongside rebuilt versions of the classic patches.
+- **A completely repainted panel:** deeper graphite and walnut, brass edge trim,
+  ten colour-coded sections with engraved waveform watermarks, numbered card
+  plates, larger chrome badge, richer scope and keybed, and a four-column
+  32-patch library.
+- **Release automation:** stable per-OS download links, versioned `latest.json`,
+  checksums, ten refreshed renders and a rolling latest release, all driven by
+  GitHub Actions.
 
 ## What is inside
 
@@ -146,8 +146,9 @@ by the screenshot tool.
   key tracking, an anti-aliased drive stage and a gently saturating low-pass
   core.
 - **CS-80-style filter envelope** with Initial Level, Attack Level and A/D/S/R.
-- **Amplitude ADSR**, velocity that opens the filter as well as the VCA, and a
-  transparent output limiter.
+- **Sine mix** that bypasses the filter and feeds the VCA, plus the amplitude
+  ADSR, velocity that opens the filter as well as the VCA, and a transparent
+  output limiter.
 - **Polyphonic glide** from the last played note, plus master tune and per-voice
   vintage variance.
 - **Buffer-size independence:** every glide is time-based and the filters and LFO
@@ -159,7 +160,7 @@ by the screenshot tool.
   spring-loaded ribbon (±12 semitones) and a 61-key poly-touch keybed.
 - **Ensemble chorus**, stereo-pre-delayed plate reverb and a brilliance tilt on
   the output.
-- **24 factory patches**, a three-column preset library, tooltips and
+- **32 factory patches**, a four-column preset library, tooltips and
   double-click parameter reset.
 - **Resizable UI** that keeps its hardware proportions from 1080×720 upward.
 
@@ -171,14 +172,14 @@ by the screenshot tool.
 | **RING** | Blend the ring carrier and noise, set the carrier speed. |
 | **FILTER** | HPF and LPF cutoffs, resonances, drive and keyboard tracking. |
 | **FILTER EG** | IL/AL set the envelope's start and peak; A/D/S/R shape it. |
-| **AMP EG** | Straight ADSR for the VCA. |
+| **VCA** | Sine mix (post-filter), then the amplitude ADSR. |
 | **CHANNEL II** | Layer level, detune, octave, pan, cutoff, resonance, pulse width, envelope scale, mode and split point. |
 | **LFO** | Speed, waveform, fade-in delay, and four modulation depths. |
-| **PERFORMANCE** | Aftertouch, bend range, stereo spread, velocity, glide and vintage. |
+| **PERFORMANCE** | Aftertouch, bend range, stereo spread, initial-bend twang, velocity, glide and vintage. |
 | **OUTPUT** | Master, tune, brilliance, ensemble and space, with a stereo meter. |
 | **RIBBON** | Drag left/right for pitch; release to spring back. |
 | **KEYBED** | 61 keys, velocity from the vertical touch point, poly pressure from a held drag. |
-| **LCD / LIBRARY** | Previous/next patch arrows; click the glass for the 24-patch library. |
+| **LCD / LIBRARY** | Previous/next patch arrows; click the glass for the 32-patch library. |
 
 ## How the CI works
 
@@ -186,9 +187,9 @@ by the screenshot tool.
 | --- | --- |
 | `dsp-tests` | The engine builds and passes all headless checks without JUCE. |
 | `build` | VST3 + Standalone compile on Linux, macOS and Windows (AU also on macOS); tests pass; zips are downloadable. |
-| `screenshots` | The real editor is rendered offscreen to nine PNGs plus a demo WAV; refreshed renders are committed back to `main`. |
+| `screenshots` | The real editor is rendered offscreen to ten PNGs plus a demo WAV; refreshed renders are committed back to `main`. |
 | `pluginval` | The Linux VST3 is validated by pluginval at strictness level 5. |
-| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and nine previews are attached to the rolling `latest` release only after the build, renders and validation succeed. |
+| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and ten previews are attached to the rolling `latest` release only after the build, renders and validation succeed. |
 | `release` | A `v*` tag publishes a versioned GitHub Release with all platform zips. |
 
 Screenshots are generated by `Cs80Screenshots`, which instantiates the actual
@@ -237,8 +238,8 @@ src/dsp/            Pure C++17 engine — no JUCE, fully unit-testable
                       segment envelopes
   Engine.*            eight dual-channel voices, glide, modulation, ring carrier,
                       ensemble, stereo-pre-delay plate, transparent limiter
-  Presets.*           24 factory patches
-  tests/              2,652 headless assertions
+  Presets.*           32 factory patches
+  tests/              3,499 headless assertions
 
 src/plugin/         JUCE wrapper
   PluginProcessor.*   APVTS, presets, MIDI dispatch, state persistence
@@ -261,11 +262,12 @@ parameters, MIDI and state, and paints the panel.
 The headless suite covers:
 
 - parameter table integrity, ranges, defaults and every spec↔struct mapping;
-- preset application, uniqueness and clamping across all 24 patches;
+- preset application, uniqueness and clamping across all 32 patches;
 - silence when idle; finite output at every parameter extreme;
 - 8-voice polyphony, click-free voice stealing with a declick handover;
 - dual-channel layering, keyboard splits, layer panning and the ring carrier;
 - sub-oscillator tracking, polyphonic glide, master tune and vintage spread;
+- sine-mix bypass level, initial-bend decay and independent card drift;
 - identical rendering at 32- and 512-sample host block sizes;
 - A4 tuning at 44.1, 48 and 96 kHz, octave switches and 24-semitone bend;
 - filter brightness response, ring/chorus stereo behaviour and reverb decay;

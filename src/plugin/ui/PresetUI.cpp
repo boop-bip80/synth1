@@ -8,15 +8,15 @@ namespace cs80::ui
 {
 namespace
 {
-constexpr float panelWidth = 1180.0f;
-constexpr float panelHeight = 760.0f;
-constexpr int columns = 3;
+constexpr float panelWidth = 1320.0f;
+constexpr float panelHeight = 820.0f;
+constexpr int columns = 4;
 constexpr int rowsPerColumn = 8;
-constexpr float rowHeight = 56.0f;
-constexpr float rowGap = 6.0f;
+constexpr float rowHeight = 68.0f;
+constexpr float rowGap = 8.0f;
 constexpr int rowCount = columns * rowsPerColumn;
 constexpr float rowsStart = 112.0f;
-constexpr float footerHeight = 58.0f;
+constexpr float footerHeight = 62.0f;
 
 juce::Rectangle<float> browserPanelBounds (juce::Rectangle<float> full)
 {
@@ -214,9 +214,9 @@ void PresetBrowser::resized() {}
 juce::Rectangle<float> PresetBrowser::rowBounds (int row) const
 {
     const auto panel = browserPanelBounds (getLocalBounds().toFloat());
-    const float gap = 20.0f;
+    const float gap = 18.0f;
     const float margin = 30.0f;
-    const float columnWidth = (panel.getWidth() - margin * 2.0f - gap * 2.0f) / 3.0f;
+    const float columnWidth = (panel.getWidth() - margin * 2.0f - gap * (float) (columns - 1)) / (float) columns;
     const int column = row / rowsPerColumn;
     const int line = row % rowsPerColumn;
 
@@ -310,13 +310,12 @@ void PresetBrowser::paint (juce::Graphics& g)
     // Column dividers.
     for (int column = 1; column < columns; ++column)
     {
-        const float columnWidth = (panel.getWidth() - 60.0f - 40.0f) / (float) columns;
-        const float x = panel.getX() + 30.0f
-                      + (float) column * columnWidth
-                      + (float) (2 * column - 1) * 10.0f;
+        const float columnWidth = (panel.getWidth() - 60.0f - 18.0f * (float) (columns - 1)) / (float) columns;
+        const float x = panel.getX() + 30.0f + (float) column * columnWidth
+                      + (float) (2 * column - 1) * 9.0f;
 
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.drawLine (x, panel.getY() + 108.0f, x, panel.getBottom() - footerHeight - 10.0f, 1.0f);
+        g.setColour (juce::Colours::black.withAlpha (0.42f));
+        g.drawLine (x, panel.getY() + 110.0f, x, panel.getBottom() - footerHeight - 8.0f, 1.0f);
     }
 
     const int current = processor.currentPresetIndex();
@@ -348,20 +347,20 @@ void PresetBrowser::paint (juce::Graphics& g)
         }
 
         drawTrackedText (g, juce::String (i + 1).paddedLeft ('0', 2),
-                         { (int) row.getX() + 12, (int) row.getY() + 7, 28, 14 },
+                         { (int) row.getX() + 13, (int) row.getY() + 9, 28, 14 },
                          selected ? colour::amberHot : colour::textFaint,
-                         juce::Justification::centredLeft, monoFont (8.6f, true), 0.2f);
+                         juce::Justification::centredLeft, monoFont (9.0f, true), 0.2f);
 
-        g.setFont (trackedFont (12.8f, 0.9f, true));
+        g.setFont (trackedFont (13.6f, 0.9f, true));
         g.setColour (selected ? colour::amberHot : (hovered ? colour::cream : colour::text));
-        g.drawText (preset.name, row.withTrimmedLeft (44.0f).withTrimmedRight (78.0f).withHeight (26.0f),
+        g.drawText (preset.name, row.withTrimmedLeft (46.0f).withTrimmedRight (78.0f).withHeight (32.0f),
                     juce::Justification::centredLeft, true);
 
         drawTrackedText (g, preset.blurb,
-                         { (int) row.getX() + 45, (int) row.getY() + 27,
+                         { (int) row.getX() + 47, (int) row.getY() + 34,
                            (int) row.getWidth() - 118, 12 },
                          selected ? colour::textDim : colour::textFaint.brighter (0.10f),
-                         juce::Justification::centredLeft, font (8.4f), 0.05f);
+                         juce::Justification::centredLeft, font (8.8f), 0.05f);
 
         const auto badgeColour = categoryColour (preset.category);
         juce::Rectangle<float> badge (row.getRight() - 66.0f, row.getCentreY() - 7.0f, 55.0f, 14.0f);

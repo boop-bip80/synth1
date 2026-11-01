@@ -35,6 +35,7 @@ const FieldRef kFields[] = {
     { pid::layerEnv,   &Params::layerEnv },
     { pid::vco1Level,  &Params::vco1Level },
     { pid::vco1Sub,    &Params::vco1Sub },
+    { pid::sineLevel,  &Params::sineLevel },
     { pid::vco1Octave, &Params::vco1Octave },
     { pid::vco1Detune, &Params::vco1Detune },
     { pid::vco2Level,  &Params::vco2Level },
@@ -71,6 +72,7 @@ const FieldRef kFields[] = {
     { pid::glide,      &Params::glide },
     { pid::tune,       &Params::tune },
     { pid::vintage,    &Params::vintage },
+    { pid::twang,      &Params::twang },
 };
 } // namespace
 
@@ -100,6 +102,7 @@ const std::vector<ParamSpec>& paramSpecs()
 
         { pid::vco1Level, "VCO 1", "VCO 1", 0.0f, 1.0f, 0.78f, 1.0f, 0, "" },
         { pid::vco1Sub, "Sub", "VCO 1", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
+        { pid::sineLevel, "Sine Mix", "VCA", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
         { pid::vco1Octave, "Octave", "VCO 1", -2.0f, 2.0f, 0.0f, 1.0f, 5, "oct" },
         { pid::vco1Detune, "Detune", "VCO 1", -25.0f, 25.0f, -6.0f, 1.0f, 0, "ct" },
 
@@ -142,6 +145,7 @@ const std::vector<ParamSpec>& paramSpecs()
         { pid::glide, "Glide", "PERFORMANCE", 0.0f, 2.0f, 0.0f, 0.45f, 0, "s" },
         { pid::tune, "Tune", "PERFORMANCE", -50.0f, 50.0f, 0.0f, 1.0f, 0, "ct" },
         { pid::vintage, "Vintage", "PERFORMANCE", 0.0f, 1.0f, 0.35f, 1.0f, 0, "" },
+        { pid::twang, "Initial Bend", "PERFORMANCE", 0.0f, 1.0f, 0.0f, 1.0f, 0, "" },
     };
 
     return specs;

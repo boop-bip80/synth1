@@ -37,7 +37,7 @@ public:
 
     void paint (juce::Graphics&) override;
 
-    static constexpr int titleHeight = 34;
+    static constexpr int titleHeight = 36;
 
     void setAccentColour (juce::Colour newColour) { accent = newColour; repaint(); }
 
@@ -61,12 +61,14 @@ public:
     void resized() override;
 
     void setLabelOverride (juce::String newLabel) { label = std::move (newLabel); repaint(); }
+    void setAccentColour (juce::Colour newAccent);
 
     juce::Slider& getSlider() { return slider; }
 
 private:
     juce::String paramId;
     juce::String label;
+    juce::Colour accent = colour::amber;
     juce::RangedAudioParameter* parameter = nullptr;
     juce::Slider slider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
@@ -86,10 +88,12 @@ public:
     void resized() override;
 
     void setLabelOverride (juce::String newLabel) { label = std::move (newLabel); repaint(); }
+    void setAccentColour (juce::Colour newAccent);
 
 private:
     juce::String paramId;
     juce::String label;
+    juce::Colour accent = colour::amber;
     juce::RangedAudioParameter* parameter = nullptr;
     int knobDiameter = 44;
     juce::Slider slider;
@@ -108,11 +112,14 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
 
+    void setAccentColour (juce::Colour newAccent) { accent = newAccent; repaint(); }
+
 private:
     void timerCallback() override;
 
     juce::String paramId;
     juce::String label;
+    juce::Colour accent = colour::amber;
     juce::AudioParameterChoice* choiceParameter = nullptr;
     int lastIndex = -1;
 

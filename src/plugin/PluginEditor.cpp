@@ -115,6 +115,8 @@ public:
         g.drawRoundedRectangle (face.reduced (1.8f), 7.0f, 1.0f);
         g.setColour (juce::Colours::white.withAlpha (0.045f));
         g.drawRoundedRectangle (face.reduced (9.0f), 4.0f, 0.9f);
+        g.setColour (juce::Colour (0xffd0a365).withAlpha (0.24f));
+        g.drawRoundedRectangle (face.reduced (12.0f), 3.4f, 0.9f);
 
         // Brass corner brackets.
         {
@@ -193,10 +195,10 @@ public:
                              juce::Justification::centred, ui::monoFont (6.2f), 0.3f);
 
         const double sampleRate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
-        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V3.0.0";
+        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V4.0.0";
 
         ui::drawTrackedText (g, "SERIAL 00108  /  MODEL E  /  " + status,
-                             { 1000, 926, 380, 12 }, ui::colour::textFaint.brighter (0.16f),
+                             { 900, 926, 480, 12 }, ui::colour::textFaint.brighter (0.16f),
                              juce::Justification::centredRight, ui::monoFont (6.0f), 0.2f);
     }
 
@@ -248,29 +250,27 @@ public:
 private:
     void buildSections()
     {
-        // The controls now fill the cards, so the large watermarks stay out of
-        // the way. The coloured header rails and numbered plates do the work.
-        addSection ("VCO 1", "CHANNEL I  ·  SAW / SUB / OCTAVE",
-                    mainSection (60, 190), ui::colour::amber, ui::SectionPanel::Decoration::none, 1);
-        addSection ("VCO 2", "CHANNEL I  ·  PULSE / PWM / OCTAVE",
-                    mainSection (258, 190), ui::colour::amber, ui::SectionPanel::Decoration::none, 2);
-        addSection ("RING", "CARRIER / NOISE",
-                    mainSection (456, 150), ui::colour::copper, ui::SectionPanel::Decoration::none, 3);
-        addSection ("FILTER", "CHANNEL I  ·  HPF / LPF / DRIVE",
-                    mainSection (614, 320), ui::colour::copper, ui::SectionPanel::Decoration::none, 4);
+        addSection ("VCO 1", "CHANNEL I  /  SAW / SUB / OCTAVE",
+                    mainSection (60, 190), ui::colour::amber, ui::SectionPanel::Decoration::saw, 1);
+        addSection ("VCO 2", "CHANNEL I  /  PULSE / PWM / OCTAVE",
+                    mainSection (258, 190), ui::colour::amberHot, ui::SectionPanel::Decoration::pulse, 2);
+        addSection ("RING", "CARRIER / BELL / NOISE",
+                    mainSection (456, 150), ui::colour::copper, ui::SectionPanel::Decoration::ring, 3);
+        addSection ("FILTER", "CHANNEL I  /  HPF / LPF / DRIVE",
+                    mainSection (614, 320), ui::colour::copper, ui::SectionPanel::Decoration::filter, 4);
         addSection ("FILTER EG", "INITIAL / ATTACK LEVEL / ADSR",
-                    mainSection (942, 250), ui::colour::sage, ui::SectionPanel::Decoration::none, 5);
-        addSection ("AMP EG", "ADSR / VCA",
-                    mainSection (1200, 180), ui::colour::sage, ui::SectionPanel::Decoration::none, 6);
+                    mainSection (942, 250), ui::colour::sage, ui::SectionPanel::Decoration::filterEnv, 5);
+        addSection ("VCA", "SINE MIX / AMPLITUDE ENVELOPE",
+                    mainSection (1200, 180), ui::colour::rose, ui::SectionPanel::Decoration::ampEnv, 6);
 
         addSection ("CHANNEL II", "LAYER / SPLIT / ANALOG OFFSET",
-                    lowerSection (60, 404), ui::colour::amberHot, ui::SectionPanel::Decoration::none, 7);
+                    lowerSection (60, 404), ui::colour::rose, ui::SectionPanel::Decoration::layer, 7);
         addSection ("LFO", "SPEED / WAVE / DELAY / DEPTH",
-                    lowerSection (472, 348), ui::colour::slate, ui::SectionPanel::Decoration::none, 8);
-        addSection ("PERFORMANCE", "TOUCH / BEND / GLIDE / VINTAGE",
-                    lowerSection (828, 296), ui::colour::copper, ui::SectionPanel::Decoration::none, 9);
+                    lowerSection (472, 348), ui::colour::slate, ui::SectionPanel::Decoration::lfo, 8);
+        addSection ("PERFORMANCE", "TOUCH / BEND / TWANG / VINTAGE",
+                    lowerSection (828, 296), ui::colour::sage, ui::SectionPanel::Decoration::touch, 9);
         addSection ("OUTPUT", "MASTER / TUNE / FX / VU",
-                    lowerSection (1132, 248), ui::colour::cream, ui::SectionPanel::Decoration::none, 10);
+                    lowerSection (1132, 248), ui::colour::gold, ui::SectionPanel::Decoration::output, 10);
     }
 
     void addSection (const juce::String& title, const juce::String& subtitle,
@@ -287,116 +287,124 @@ private:
     {
         using B = juce::Rectangle<int>;
 
-        auto fader = [this] (const char* id, B bounds, const char* labelOverride = nullptr)
+        auto fader = [this] (const char* id, B bounds, const char* labelOverride = nullptr,
+                             juce::Colour accent = ui::colour::amber)
         {
             auto control = std::make_unique<ui::ParamFader> (processor.apvts, id);
 
             if (labelOverride != nullptr)
                 control->setLabelOverride (labelOverride);
 
+            control->setAccentColour (accent);
             control->setBounds (bounds);
             addAndMakeVisible (*control);
             controls.push_back (std::move (control));
         };
 
-        auto knob = [this] (const char* id, B bounds, int diameter, const char* labelOverride = nullptr)
+        auto knob = [this] (const char* id, B bounds, int diameter, const char* labelOverride = nullptr,
+                            juce::Colour accent = ui::colour::amber)
         {
             auto control = std::make_unique<ui::ParamKnob> (processor.apvts, id, diameter);
 
             if (labelOverride != nullptr)
                 control->setLabelOverride (labelOverride);
 
+            control->setAccentColour (accent);
             control->setBounds (bounds);
             addAndMakeVisible (*control);
             controls.push_back (std::move (control));
         };
 
-        auto choice = [this] (const char* id, B bounds)
+        auto choice = [this] (const char* id, B bounds, juce::Colour accent = ui::colour::amber)
         {
             auto control = std::make_unique<ui::ParamChoice> (processor.apvts, id);
+            control->setAccentColour (accent);
             control->setBounds (bounds);
             addAndMakeVisible (*control);
             controls.push_back (std::move (control));
         };
 
         // VCO 1
-        fader (pid::vco1Level, { 72, 210, 46, 336 }, "LEVEL");
-        fader (pid::vco1Sub, { 126, 210, 46, 336 }, "SUB");
-        knob (pid::vco1Octave, { 180, 216, 58, 82 }, 42, "OCT");
-        knob (pid::vco1Detune, { 180, 306, 58, 82 }, 42, "DETUNE");
+        fader (pid::vco1Level, { 72, 210, 46, 336 }, "LEVEL", ui::colour::amber);
+        fader (pid::vco1Sub, { 126, 210, 46, 336 }, "SUB", ui::colour::amber);
+        knob (pid::vco1Octave, { 180, 216, 58, 82 }, 42, "OCT", ui::colour::amber);
+        knob (pid::vco1Detune, { 180, 306, 58, 82 }, 42, "DETUNE", ui::colour::amber);
 
         // VCO 2
-        fader (pid::vco2Level, { 270, 210, 46, 336 }, "LEVEL");
-        fader (pid::vco2Pw, { 324, 210, 46, 336 }, "PW");
-        knob (pid::vco2Octave, { 378, 216, 58, 82 }, 42, "OCT");
-        knob (pid::vco2Detune, { 378, 306, 58, 82 }, 42, "DETUNE");
+        fader (pid::vco2Level, { 270, 210, 46, 336 }, "LEVEL", ui::colour::amberHot);
+        fader (pid::vco2Pw, { 324, 210, 46, 336 }, "PW", ui::colour::amberHot);
+        knob (pid::vco2Octave, { 378, 216, 58, 82 }, 42, "OCT", ui::colour::amberHot);
+        knob (pid::vco2Detune, { 378, 306, 58, 82 }, 42, "DETUNE", ui::colour::amberHot);
 
         // Ring modulator / noise
-        knob (pid::ring, { 468, 214, 62, 100 }, 58, "RING MOD");
-        knob (pid::ringSpeed, { 534, 214, 62, 100 }, 58, "SPEED");
-        knob (pid::noise, { 501, 326, 62, 100 }, 58, "NOISE");
+        knob (pid::ring, { 468, 214, 62, 100 }, 58, "RING MOD", ui::colour::copper);
+        knob (pid::ringSpeed, { 534, 214, 62, 100 }, 58, "SPEED", ui::colour::copper);
+        knob (pid::noise, { 501, 326, 62, 100 }, 58, "NOISE", ui::colour::copper);
 
         // Filters
-        fader (pid::hpfCutoff, { 626, 210, 54, 336 }, "HP CUTOFF");
-        fader (pid::lpfCutoff, { 688, 210, 54, 336 }, "LP CUTOFF");
-        knob (pid::hpfRes, { 752, 214, 64, 88 }, 44, "HP RES");
-        knob (pid::lpfRes, { 820, 214, 64, 88 }, 44, "LP RES");
-        knob (pid::drive, { 752, 320, 64, 88 }, 44, "DRIVE");
-        knob (pid::filterTrack, { 820, 320, 64, 88 }, 44, "TRACK");
+        fader (pid::hpfCutoff, { 626, 210, 54, 336 }, "HP CUTOFF", ui::colour::copper);
+        fader (pid::lpfCutoff, { 688, 210, 54, 336 }, "LP CUTOFF", ui::colour::copper);
+        knob (pid::hpfRes, { 752, 214, 64, 88 }, 44, "HP RES", ui::colour::copper);
+        knob (pid::lpfRes, { 820, 214, 64, 88 }, 44, "LP RES", ui::colour::copper);
+        knob (pid::drive, { 752, 320, 64, 88 }, 44, "DRIVE", ui::colour::copper);
+        knob (pid::filterTrack, { 820, 320, 64, 88 }, 44, "TRACK", ui::colour::copper);
 
         // Filter envelope
         const char* filterIds[] = { pid::fIl, pid::fAl, pid::fA, pid::fD, pid::fS, pid::fR };
         const char* filterLabels[] = { "IL", "AL", "ATK", "DEC", "SUS", "REL" };
 
         for (int i = 0; i < 6; ++i)
-            fader (filterIds[i], { 954 + i * 39, 210, 34, 336 }, filterLabels[i]);
+            fader (filterIds[i], { 954 + i * 39, 210, 34, 336 }, filterLabels[i], ui::colour::sage);
 
-        // Amp envelope
+        // Sine mix and VCA envelope
+        fader (pid::sineLevel, { 1210, 210, 32, 336 }, "SINE", ui::colour::rose);
+
         const char* ampIds[] = { pid::aA, pid::aD, pid::aS, pid::aR };
         const char* ampLabels[] = { "ATK", "DEC", "SUS", "REL" };
 
         for (int i = 0; i < 4; ++i)
-            fader (ampIds[i], { 1212 + i * 41, 210, 36, 336 }, ampLabels[i]);
+            fader (ampIds[i], { 1242 + i * 32, 210, 32, 336 }, ampLabels[i], ui::colour::rose);
 
         // Channel II
         const int chX[] = { 70, 148, 226, 304, 382 };
 
-        knob (pid::layerLevel, { chX[0], 616, 76, 74 }, 36);
-        knob (pid::layerDetune, { chX[1], 616, 76, 74 }, 36);
-        knob (pid::layerOctave, { chX[2], 616, 76, 74 }, 36, "OCT");
-        knob (pid::layerPan, { chX[3], 616, 76, 74 }, 36);
-        choice (pid::layerMode, { chX[4], 616, 76, 74 });
-        knob (pid::layerCutoff, { chX[0], 692, 76, 74 }, 36, "CUTOFF");
-        knob (pid::layerRes, { chX[1], 692, 76, 74 }, 36, "RES");
-        knob (pid::layerPw, { chX[2], 692, 76, 74 }, 36, "PW");
-        knob (pid::layerEnv, { chX[3], 692, 76, 74 }, 36, "ENV");
-        knob (pid::splitPoint, { chX[4], 692, 76, 74 }, 36, "SPLIT");
+        knob (pid::layerLevel, { chX[0], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
+        knob (pid::layerDetune, { chX[1], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
+        knob (pid::layerOctave, { chX[2], 616, 76, 74 }, 36, "OCT", ui::colour::rose);
+        knob (pid::layerPan, { chX[3], 616, 76, 74 }, 36, nullptr, ui::colour::rose);
+        choice (pid::layerMode, { chX[4], 616, 76, 74 }, ui::colour::rose);
+        knob (pid::layerCutoff, { chX[0], 692, 76, 74 }, 36, "CUTOFF", ui::colour::rose);
+        knob (pid::layerRes, { chX[1], 692, 76, 74 }, 36, "RES", ui::colour::rose);
+        knob (pid::layerPw, { chX[2], 692, 76, 74 }, 36, "PW", ui::colour::rose);
+        knob (pid::layerEnv, { chX[3], 692, 76, 74 }, 36, "ENV", ui::colour::rose);
+        knob (pid::splitPoint, { chX[4], 692, 76, 74 }, 36, "SPLIT", ui::colour::rose);
 
         // LFO
         const int lfoX[] = { 480, 562, 644, 726 };
-        knob (pid::lfoRate, { lfoX[0], 616, 78, 74 }, 36, "SPEED");
-        choice (pid::lfoWave, { lfoX[1], 616, 78, 74 });
-        knob (pid::lfoDelay, { lfoX[2], 616, 78, 74 }, 36, "DELAY");
-        knob (pid::lfoPitch, { lfoX[3], 616, 78, 74 }, 36, "PITCH");
-        knob (pid::lfoPwm, { lfoX[0], 692, 78, 74 }, 36, "PWM");
-        knob (pid::lfoFilter, { lfoX[1], 692, 78, 74 }, 36, "FILTER");
-        knob (pid::lfoAmp, { lfoX[2], 692, 78, 74 }, 36, "TREM");
+        knob (pid::lfoRate, { lfoX[0], 616, 78, 74 }, 36, "SPEED", ui::colour::slate);
+        choice (pid::lfoWave, { lfoX[1], 616, 78, 74 }, ui::colour::slate);
+        knob (pid::lfoDelay, { lfoX[2], 616, 78, 74 }, 36, "DELAY", ui::colour::slate);
+        knob (pid::lfoPitch, { lfoX[3], 616, 78, 74 }, 36, "PITCH", ui::colour::slate);
+        knob (pid::lfoPwm, { lfoX[0], 692, 78, 74 }, 36, "PWM", ui::colour::slate);
+        knob (pid::lfoFilter, { lfoX[1], 692, 78, 74 }, 36, "FILTER", ui::colour::slate);
+        knob (pid::lfoAmp, { lfoX[2], 692, 78, 74 }, 36, "TREM", ui::colour::slate);
 
         // Performance
-        const int perfX[] = { 838, 925, 1012 };
-        knob (pid::aftertouch, { perfX[0], 616, 84, 74 }, 36);
-        knob (pid::bendRange, { perfX[1], 616, 84, 74 }, 36, "BEND");
-        knob (pid::spread, { perfX[2], 616, 84, 74 }, 36);
-        knob (pid::velocity, { perfX[0], 692, 84, 74 }, 36);
-        knob (pid::glide, { perfX[1], 692, 84, 74 }, 36);
-        knob (pid::vintage, { perfX[2], 692, 84, 74 }, 36, "VINTAGE");
+        const int perfX[] = { 834, 902, 970, 1038 };
+        knob (pid::aftertouch, { perfX[0], 616, 68, 74 }, 36, nullptr, ui::colour::sage);
+        knob (pid::bendRange, { perfX[1], 616, 68, 74 }, 36, "BEND", ui::colour::sage);
+        knob (pid::spread, { perfX[2], 616, 68, 74 }, 36, nullptr, ui::colour::sage);
+        knob (pid::twang, { perfX[3], 616, 68, 74 }, 36, "TWANG", ui::colour::sage);
+        knob (pid::velocity, { perfX[0], 692, 68, 74 }, 36, nullptr, ui::colour::sage);
+        knob (pid::glide, { perfX[1], 692, 68, 74 }, 36, nullptr, ui::colour::sage);
+        knob (pid::vintage, { perfX[2], 692, 68, 74 }, 36, "VINTAGE", ui::colour::sage);
 
         // Output
-        knob (pid::master, { 1142, 616, 54, 74 }, 42, "MASTER");
-        knob (pid::tune, { 1196, 616, 54, 74 }, 42);
-        knob (pid::brilliance, { 1250, 616, 54, 74 }, 42, "BRILL");
-        knob (pid::ensemble, { 1142, 692, 54, 74 }, 42, "ENSEMBLE");
-        knob (pid::space, { 1196, 692, 54, 74 }, 42, "SPACE");
+        knob (pid::master, { 1142, 616, 54, 74 }, 42, "MASTER", ui::colour::gold);
+        knob (pid::tune, { 1196, 616, 54, 74 }, 42, nullptr, ui::colour::gold);
+        knob (pid::brilliance, { 1250, 616, 54, 74 }, 42, "BRILL", ui::colour::gold);
+        knob (pid::ensemble, { 1142, 692, 54, 74 }, 42, "ENSEMBLE", ui::colour::gold);
+        knob (pid::space, { 1196, 692, 54, 74 }, 42, "SPACE", ui::colour::gold);
 
         auto meter = std::make_unique<ui::MeterDisplay> (processor.getEngine());
         meter->setBounds (1264, 618, 48, 146);

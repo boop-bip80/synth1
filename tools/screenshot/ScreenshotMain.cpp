@@ -27,7 +27,7 @@ juce::File outputDirectory (int argc, char** argv)
 struct Shot
 {
     const char* fileName;
-    int presetIndex;
+    const char* presetName;
     std::vector<int> notes;
     bool browserOpen;
     int browserHover;
@@ -35,12 +35,24 @@ struct Shot
     juce::Rectangle<int> crop;
 };
 
+int presetIndexByName (const juce::String& name)
+{
+    const auto& presets = cs80::factoryPresets();
+
+    for (size_t i = 0; i < presets.size(); ++i)
+        if (juce::String (presets[i].name) == name)
+            return (int) i;
+
+    std::fprintf (stderr, "Preset not found: %s\n", name.toRawUTF8());
+    return 0;
+}
+
 void renderShot (const Shot& shot, const juce::File& directory)
 {
     cs80::Cs80AudioProcessor processor;
     processor.setPlayConfigDetails (0, 2, (int) kSampleRate, 512);
     processor.prepareToPlay (kSampleRate, 512);
-    processor.loadPreset (shot.presetIndex);
+    processor.loadPreset (presetIndexByName (shot.presetName));
 
     for (int note : shot.notes)
         processor.keyboardState.noteOn (1, note, 0.8f);
@@ -95,7 +107,7 @@ void renderDemoAudio (const juce::File& file)
     cs80::Cs80AudioProcessor processor;
     processor.setPlayConfigDetails (0, 2, (int) kSampleRate, 512);
     processor.prepareToPlay (kSampleRate, 512);
-    processor.loadPreset (0); // Blade Brass
+    processor.loadPreset (presetIndexByName ("Blade Brass"));
 
     struct NoteEvent
     {
@@ -221,18 +233,20 @@ int main (int argc, char** argv)
     std::printf ("CS-80E offline renderer\n");
 
     const std::vector<Shot> shots = {
-        { "01-blade-brass.png", 0, { 36, 48, 51, 55, 62 }, false, 0, 1.20f, {} },
-        { "02-vangelis-lead.png", 1, { 60, 63, 67, 70 }, false, 0, 1.10f, {} },
-        { "03-neon-pads.png", 2, { 41, 48, 55, 60, 63, 68 }, false, 0, 1.10f, {} },
-        { "04-preset-library.png", 9, { 36, 48, 51, 55, 60, 63, 67 }, true, 13, 1.00f, {} },
-        { "05-brass-stab.png", 7, { 48, 55, 58, 63 }, false, 0, 1.10f, {} },
-        { "06-filter-closeup.png", 4, { 60, 64, 67 }, false, 0, 1.80f,
-          juce::Rectangle<int> (456, 168, 736, 404) },
-        { "07-ribbon-keybed.png", 0, { 48, 55, 60, 64 }, false, 0, 1.40f,
-          juce::Rectangle<int> (40, 574, 1360, 382) },
-        { "08-blade-runner.png", 9, { 36, 48, 51, 55, 60, 63 }, false, 0, 1.10f, {} },
-        { "09-channel-two.png", 18, { 52, 59, 64, 68 }, false, 0, 2.00f,
-          juce::Rectangle<int> (50, 570, 430, 215) },
+        { "01-blade-brass.png", "Blade Brass", { 36, 48, 51, 55, 62 }, false, 0, 1.20f, {} },
+        { "02-vangelis-lead.png", "Vangelis Lead", { 60, 63, 67, 70 }, false, 0, 1.10f, {} },
+        { "03-neon-pads.png", "Neon Pads", { 41, 48, 55, 60, 63, 68 }, false, 0, 1.10f, {} },
+        { "04-preset-library.png", "Blade Runner", { 36, 48, 51, 55, 60, 63, 67 }, true, 13, 1.00f, {} },
+        { "05-brass-stab.png", "Brass Stab", { 48, 55, 58, 63 }, false, 0, 1.10f, {} },
+        { "06-filter-closeup.png", "Glass Choir", { 60, 64, 67 }, false, 0, 1.75f,
+          juce::Rectangle<int> (440, 166, 770, 418) },
+        { "07-vca-sine.png", "Velvet Strings", { 52, 59, 64, 68 }, false, 0, 2.10f,
+          juce::Rectangle<int> (1060, 166, 332, 418) },
+        { "08-ribbon-keybed.png", "Blade Brass", { 48, 55, 60, 64 }, false, 0, 1.45f,
+          juce::Rectangle<int> (40, 570, 1360, 382) },
+        { "09-blade-runner.png", "Blade Runner", { 36, 48, 51, 55, 60, 63 }, false, 0, 1.10f, {} },
+        { "10-channel-two.png", "Deep Choir", { 52, 59, 64, 68 }, false, 0, 2.00f,
+          juce::Rectangle<int> (50, 570, 430, 218) },
     };
 
     for (const auto& shot : shots)

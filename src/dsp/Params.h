@@ -24,6 +24,8 @@ inline constexpr const char* vco1Sub    = "vco1Sub";
 inline constexpr const char* vco1Octave = "vco1Octave";
 inline constexpr const char* vco1Detune = "vco1Detune";
 
+inline constexpr const char* sineLevel  = "sineLevel";
+
 inline constexpr const char* vco2Level  = "vco2Level";
 inline constexpr const char* vco2Pw     = "vco2Pw";
 inline constexpr const char* vco2Octave = "vco2Octave";
@@ -74,6 +76,7 @@ inline constexpr const char* velocity   = "velocity";
 inline constexpr const char* glide      = "glide";
 inline constexpr const char* tune       = "tune";
 inline constexpr const char* vintage    = "vintage";
+inline constexpr const char* twang      = "twang";
 } // namespace pid
 
 //==============================================================================
@@ -121,6 +124,12 @@ struct Params
     float layerRes = 0.25f;
     float layerEnv = 1.0f;
 
+    /** The CS-80 VCA mixes a pure sine straight past the VCF. It restores the
+        fundamental when a resonant high-pass has thinned the filtered path,
+        and it is a big part of why the instrument can sound vocal and huge at
+        the same time. */
+    float sineLevel = 0.0f;
+
     float vco1Level = 0.78f;
     float vco1Sub = 0.0f;
     float vco1Octave = 0.0f;
@@ -165,6 +174,10 @@ struct Params
     float glide = 0.0f;
     float tune = 0.0f;
     float vintage = 0.35f;
+
+    /** CS-80 "initial pitch bend": velocity starts the note slightly flat and
+        lets it spring up to pitch, the little brass/woodwind twang. */
+    float twang = 0.0f;
 };
 
 Params defaultParams();

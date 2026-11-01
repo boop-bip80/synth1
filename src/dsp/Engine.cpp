@@ -124,7 +124,7 @@ public:
         std::fill (bufferL.begin(), bufferL.end(), 0.0f);
         std::fill (bufferR.begin(), bufferR.end(), 0.0f);
         write = 0;
-        phases = { 0.0f, 0.37f, 0.71f };
+        phases = { 0.0f, 0.31f, 0.63f, 0.86f };
         slowPhase = 0.0f;
         feedbackL = feedbackR = 0.0f;
         feedbackHighpassL = feedbackHighpassR = 0.0f;
@@ -137,13 +137,16 @@ public:
         if (amount <= 0.0005f || bufferSize <= 0)
             return;
 
-        const float baseDelay[3] = { 0.0087f, 0.0137f, 0.0199f };
-        const float depth[3] = { 0.0023f, 0.0031f, 0.0038f };
-        const float rate[3] = { 0.19f, 0.27f, 0.14f };
-        const float tapGain[3] = { 0.55f, 0.34f, 0.23f };
+        // Four BBD taps, each with its own rate, depth and stereo phase. The
+        // wider spacing and the extra tap turn the ensemble from a gentle
+        // shimmer into the big, softly drifting CS-80 halo.
+        const float baseDelay[4] = { 0.0081f, 0.0127f, 0.0181f, 0.0263f };
+        const float depth[4] = { 0.0021f, 0.0029f, 0.0036f, 0.0044f };
+        const float rate[4] = { 0.17f, 0.23f, 0.13f, 0.097f };
+        const float tapGain[4] = { 0.52f, 0.32f, 0.22f, 0.16f };
 
-        const float dryGain = 1.0f - 0.20f * amount;
-        const float wetGain = 0.66f * amount;
+        const float dryGain = 1.0f - 0.24f * amount;
+        const float wetGain = 0.61f * amount;
         const float slowIncrement = 0.083f / (float) sampleRate;
 
         for (int i = 0; i < numSamples; ++i)
@@ -160,7 +163,7 @@ public:
 
             float wetL = 0.0f, wetR = 0.0f;
 
-            for (int tap = 0; tap < 3; ++tap)
+            for (int tap = 0; tap < 4; ++tap)
             {
                 const float modL = std::sin (2.0f * kPi * phases[(size_t) tap]);
                 const float modR = std::sin (2.0f * kPi * (phases[(size_t) tap] + 0.43f));
@@ -223,7 +226,7 @@ private:
     int bufferSize = 0;
     int write = 0;
     std::vector<float> bufferL, bufferR;
-    std::array<float, 3> phases { 0.0f, 0.37f, 0.71f };
+    std::array<float, 4> phases { 0.0f, 0.31f, 0.63f, 0.86f };
     float slowPhase = 0.0f;
     float feedbackL = 0.0f, feedbackR = 0.0f;
     float feedbackHighpassL = 0.0f, feedbackHighpassR = 0.0f;
@@ -246,15 +249,19 @@ public:
         const double scale = sampleRate / 44100.0;
 
         const int combDelays[6] = { 1116, 1188, 1277, 1356, 1422, 1491 };
-        const int allpassDelays[3] = { 556, 441, 341 };
+        const int allpassDelays[4] = { 556, 441, 341, 213 };
 
         for (int i = 0; i < 6; ++i)
         {
             combL[(size_t) i].resize ((int) (combDelays[i] * scale) + 4);
             combR[(size_t) i].resize ((int) ((combDelays[i] + 23) * scale) + 4);
+            combL[(size_t) i].modDepth = (0.7f + 0.23f * (float) i) * (float) scale;
+            combR[(size_t) i].modDepth = (0.9f + 0.19f * (float) i) * (float) scale;
+            combL[(size_t) i].modPhase = 0.11f * (float) i;
+            combR[(size_t) i].modPhase = 0.19f + 0.13f * (float) i;
         }
 
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 4; ++i)
         {
             allpassL[(size_t) i].resize ((int) (allpassDelays[i] * scale) + 4);
             allpassR[(size_t) i].resize ((int) ((allpassDelays[i] + 17) * scale) + 4);
@@ -277,6 +284,7 @@ public:
         std::fill (preDelayL.begin(), preDelayL.end(), 0.0f);
         std::fill (preDelayR.begin(), preDelayR.end(), 0.0f);
         preWriteL = preWriteR = 0;
+        modPhase1 = modPhase2 = 0.0f;
         wetHighpassL = wetHighpassR = 0.0f;
         wetLowpassL = wetLowpassR = 0.0f;
     }
@@ -286,12 +294,14 @@ public:
         if (mix <= 0.0005f)
             return;
 
-        constexpr float feedback = 0.855f;
-        constexpr float damping = 0.22f;
+        constexpr float feedback = 0.862f;
+        constexpr float damping = 0.23f;
         const float dryGain = 1.0f - 0.26f * mix;
-        const float wetGain = 0.38f * mix;
+        const float wetGain = 0.40f * mix;
         const float hpCoeff = 1.0f - std::exp (-2.0f * kPi * 170.0f / (float) sampleRate);
         const float lpCoeff = 1.0f - std::exp (-2.0f * kPi * 7600.0f / (float) sampleRate);
+        const float modInc1 = 0.107f / (float) sampleRate;
+        const float modInc2 = 0.163f / (float) sampleRate;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -318,11 +328,25 @@ public:
 
             float wetL = 0.0f, wetR = 0.0f;
 
-            for (auto& comb : combL)
-                wetL += processComb (comb, inL, feedback, damping);
+            // Slowly detune the tank. Static comb delays give a metallic ring;
+            // a fraction of a millisecond of movement is what makes a plate
+            // sound like air rather than a bank of filters.
+            const float modA = std::sin (2.0f * kPi * modPhase1);
+            const float modB = std::sin (2.0f * kPi * modPhase2);
 
-            for (auto& comb : combR)
-                wetR += processComb (comb, inR, feedback, damping);
+            for (int i = 0; i < 6; ++i)
+                wetL += processComb (combL[(size_t) i], inL, feedback, damping,
+                                     combL[(size_t) i].modDepth * ((i & 1) ? modB : modA));
+
+            for (int i = 0; i < 6; ++i)
+                wetR += processComb (combR[(size_t) i], inR, feedback, damping,
+                                     combR[(size_t) i].modDepth * ((i & 1) ? modA : modB));
+
+            modPhase1 += modInc1;
+            modPhase2 += modInc2;
+
+            if (modPhase1 >= 1.0f) modPhase1 -= 1.0f;
+            if (modPhase2 >= 1.0f) modPhase2 -= 1.0f;
 
             for (auto& ap : allpassL)
                 wetL = processAllpass (ap, wetL);
@@ -349,6 +373,8 @@ private:
         std::vector<float> buffer;
         int index = 0;
         float store = 0.0f;
+        float modDepth = 0.0f;
+        float modPhase = 0.0f;
 
         void resize (int size) { buffer.assign ((size_t) std::max (size, 8), 0.0f); }
     };
@@ -361,13 +387,27 @@ private:
         void resize (int size) { buffer.assign ((size_t) std::max (size, 8), 0.0f); }
     };
 
-    static float processComb (Comb& comb, float in, float feedback, float damping) noexcept
+    static float processComb (Comb& comb, float in, float feedback, float damping,
+                              float modOffset) noexcept
     {
-        const float out = comb.buffer[(size_t) comb.index];
+        const int size = (int) comb.buffer.size();
+        float readPos = (float) comb.index - modOffset;
+
+        while (readPos < 0.0f)
+            readPos += (float) size;
+
+        while (readPos >= (float) size)
+            readPos -= (float) size;
+
+        const int i0 = (int) readPos;
+        const int i1 = (i0 + 1) % size;
+        const float frac = readPos - (float) i0;
+        const float out = lerpf (comb.buffer[(size_t) i0], comb.buffer[(size_t) i1], frac);
+
         comb.store = out * (1.0f - damping) + comb.store * damping;
         comb.buffer[(size_t) comb.index] = in + comb.store * feedback;
 
-        if (++comb.index >= (int) comb.buffer.size())
+        if (++comb.index >= size)
             comb.index = 0;
 
         return out;
@@ -386,10 +426,11 @@ private:
 
     double sampleRate = 48000.0;
     std::array<Comb, 6> combL, combR;
-    std::array<Allpass, 3> allpassL, allpassR;
+    std::array<Allpass, 4> allpassL, allpassR;
     std::vector<float> preDelayL, preDelayR;
     int preDelaySamplesL = 0, preDelaySamplesR = 0;
     int preWriteL = 0, preWriteR = 0;
+    float modPhase1 = 0.0f, modPhase2 = 0.0f;
     float wetHighpassL = 0.0f, wetHighpassR = 0.0f;
     float wetLowpassL = 0.0f, wetLowpassR = 0.0f;
 };
@@ -406,6 +447,7 @@ struct Layer
         osc1.reset (0.0);
         osc2.reset (0.33);
         subOsc.reset (0.17);
+        sineOsc.reset (0.09);
         ampEnv.prepare (sampleRate);
         filterEnv.prepare (sampleRate);
         hpf.reset();
@@ -447,7 +489,7 @@ struct Layer
     }
 
     double sampleRate = 48000.0;
-    Oscillator osc1, osc2, subOsc;
+    Oscillator osc1, osc2, subOsc, sineOsc;
     Envelope ampEnv, filterEnv;
     SVF hpf, lpf;
     SoftClipAdaa driveAdaa;
@@ -481,6 +523,9 @@ struct Voice
         varianceState = 0xfeedfaceu;
         cutoffSmooth = 1400.0f;
         driftPhase1 = driftPhase2 = driftOffset = 0.0f;
+        layerDriftPhase = 0.0f;
+        layerCutoffDriftPhase = 0.0f;
+        twangSemis = twangCurrent = 0.0f;
         glidePitch = 60.0f;
         glideTarget = 60.0f;
         lastNote = 60.0f;
@@ -536,6 +581,7 @@ struct Voice
                 layer.osc1.reset (nextRandom01());
                 layer.osc2.reset (nextRandom01());
                 layer.subOsc.reset (nextRandom01());
+                layer.sineOsc.reset (nextRandom01());
                 layer.hpf.reset();
                 layer.lpf.reset();
                 layer.driveAdaa.reset();
@@ -566,7 +612,15 @@ struct Voice
         {
             driftPhase1 = nextRandom01();
             driftPhase2 = nextRandom01();
+            layerDriftPhase = nextRandom01();
+            layerCutoffDriftPhase = nextRandom01();
         }
+
+        // Initial touch bend: the note starts a little flat and springs up.
+        // Velocity makes it stronger, exactly like the CS-80's key-contact
+        // pitch bend, and a lighter touch gives the softer, rounder version.
+        twangSemis = p.twang * (1.15f - 0.35f * velocity);
+        twangCurrent = twangSemis;
 
         lastNote = (float) midiNote;
     }
@@ -631,6 +685,8 @@ struct Voice
         // stacked voices sound alive rather than sampled.
         driftPhase1 += 0.071f * chunkSeconds;
         driftPhase2 += 0.113f * chunkSeconds;
+        layerDriftPhase += 0.049f * chunkSeconds;
+        layerCutoffDriftPhase += 0.023f * chunkSeconds;
 
         if (driftPhase1 >= 1.0f)
             driftPhase1 -= 1.0f;
@@ -638,10 +694,24 @@ struct Voice
         if (driftPhase2 >= 1.0f)
             driftPhase2 -= 1.0f;
 
+        if (layerDriftPhase >= 1.0f)
+            layerDriftPhase -= 1.0f;
+
+        if (layerCutoffDriftPhase >= 1.0f)
+            layerCutoffDriftPhase -= 1.0f;
+
         const float vintage = clampf (p.vintage, 0.0f, 1.0f);
         const float driftCents = vintage * (driftOffset
                                           + 2.3f * std::sin (2.0f * kPi * driftPhase1)
                                           + 1.4f * std::sin (2.0f * kPi * driftPhase2));
+
+        // The two cards are trimmed independently. Giving channel II its own
+        // very slow drift keeps a layered patch moving instead of beating at
+        // one fixed rate.
+        const float layerDriftCents = vintage * (1.9f * std::sin (2.0f * kPi * layerDriftPhase)
+                                                 + 0.7f * std::sin (2.0f * kPi * (layerDriftPhase + 0.31f)));
+        const float layerCutoffDrift = vintage * 0.085f
+                                     * std::sin (2.0f * kPi * layerCutoffDriftPhase);
 
         for (int i = 0; i < 2; ++i)
         {
@@ -665,17 +735,21 @@ struct Voice
         // Pre-compute one glide position per control block so both channel
         // cards follow exactly the same pitch curve.
         float glidePitchBlocks[kPitchBlocks] {};
+        float twangBlocks[kPitchBlocks] {};
         {
             const int blocks = (numSamples + kControlBlock - 1) / kControlBlock;
             const float glideSeconds = p.glide > 0.0005f ? p.glide : 0.0f;
             const bool glideActive = glideSeconds > 0.0005f;
             const float glideTau = std::max (glideSeconds / 4.5f, 1.0e-4f);
+            const float twangTau = 0.042f;
             float local = glidePitch;
+            float localTwang = twangCurrent;
 
             for (int b = 0; b < blocks; ++b)
             {
                 const int n = std::min (kControlBlock, numSamples - b * kControlBlock);
                 glidePitchBlocks[b] = local;
+                twangBlocks[b] = localTwang;
 
                 if (glideActive)
                 {
@@ -687,21 +761,28 @@ struct Voice
                 {
                     local = glideTarget;
                 }
+
+                const float twangCoeff = 1.0f - std::exp (-(float) n
+                                                          / (twangTau * (float) sampleRate));
+                localTwang += (0.0f - localTwang) * twangCoeff;
             }
 
             glidePitch = local;
+            twangCurrent = localTwang;
         }
 
         float bufferA[kMixBlock];
         float bufferB[kMixBlock];
 
         if (useLayerA)
-            renderLayer (0, bufferA, numSamples, p, mod, driftCents, aftertouch,
-                         velocityOctaves, ampGain, glidePitchBlocks);
+            renderLayer (0, bufferA, numSamples, p, mod, driftCents - layerDriftCents * 0.5f,
+                         aftertouch, velocityOctaves, ampGain, glidePitchBlocks,
+                         twangBlocks, layerCutoffDrift);
 
         if (useLayerB)
-            renderLayer (1, bufferB, numSamples, p, mod, driftCents, aftertouch,
-                         velocityOctaves, ampGain, glidePitchBlocks);
+            renderLayer (1, bufferB, numSamples, p, mod, driftCents + layerDriftCents * 0.5f,
+                         aftertouch, velocityOctaves, ampGain, glidePitchBlocks,
+                         twangBlocks, layerCutoffDrift);
 
         const float angleA = (panA + 1.0f) * kPi * 0.25f;
         const float angleB = (panB + 1.0f) * kPi * 0.25f;
@@ -733,7 +814,8 @@ struct Voice
     void renderLayer (int index, float* destination, int numSamples, const Params& p,
                       const Modulation& mod, float driftCents, float aftertouch,
                       float velocityOctaves, float ampGain,
-                      const float* glidePitchBlocks) noexcept
+                      const float* glidePitchBlocks, const float* twangBlocks,
+                      float layerCutoffDrift) noexcept
     {
         auto& layer = layers[(size_t) index];
         const bool second = index == 1;
@@ -759,6 +841,7 @@ struct Voice
         {
             const int n = std::min (kControlBlock, numSamples - start);
             const float glidePitchLocal = glidePitchBlocks[start / kControlBlock];
+            const float twangSemis = twangBlocks[start / kControlBlock];
 
             const float lfo = lfoWaveform (p.lfoWave, lfoPhase);
             lfoPhase += mod.lfoRate * (float) n / (float) sampleRate;
@@ -787,13 +870,13 @@ struct Voice
             const float pitchSemis = baseSemis + vibratoCents * 0.01f;
 
             const double f1 = 440.0 * std::exp2 ((glidePitchLocal - 69.0
-                                                  + pitchSemis
+                                                  + pitchSemis - twangSemis
                                                   + p.vco1Octave * 12.0
                                                   + p.vco1Detune * 0.01
                                                   + pitchOffset) / 12.0);
 
             const double f2 = 440.0 * std::exp2 ((glidePitchLocal - 69.0
-                                                  + pitchSemis
+                                                  + pitchSemis - twangSemis
                                                   + p.vco2Octave * 12.0
                                                   + p.vco2Detune * 0.01
                                                   + pitchOffset) / 12.0);
@@ -801,6 +884,7 @@ struct Voice
             layer.osc1.setFrequency (sampleRate, f1);
             layer.osc2.setFrequency (sampleRate, f2);
             layer.subOsc.setFrequency (sampleRate, f1 * 0.5);
+            layer.sineOsc.setFrequency (sampleRate, f1);
 
             const float pulseWidth = clampf (pulseWidthBase
                                              + modAmount * p.lfoPwm * 0.38f
@@ -813,6 +897,7 @@ struct Voice
                                       + aftertouch * 2.2f
                                       + velocityOctaves
                                       + vintageCutoffOct
+                                      + layerCutoffDrift
                                       + cutoffOffset;
 
             const float targetCutoff = clampf (p.lpfCutoff * std::exp2 (cutoffOctaves),
@@ -833,6 +918,7 @@ struct Voice
                 const float saw = layer.osc1.saw();
                 const float pulse = layer.osc2.pulse (pulseWidth);
                 const float sub = layer.subOsc.sub();
+                const float sine = layer.sineOsc.sine();
                 const float noise = layer.nextNoise();
 
                 const float carrier = std::sin (2.0f * kPi * (float) layer.ringPhase);
@@ -855,9 +941,19 @@ struct Voice
 
                 // Anti-aliased saturation is the heart of the voice's warmth.
                 const float driven = layer.driveAdaa.process (highpassed * drive) * driveComp;
-                const float filtered = layer.lpf.lowpass (driven, filterSat);
+                const float filtered = layer.lpf.lowpass (driven, filterSat)
+                                     * (1.0f - 0.10f * lpfRes);
 
-                float value = filtered * amp * layerAmp * tremolo * vintageLevel;
+                // The VCA's sine bypass is a defining CS-80 detail: the filter
+                // can thin and vowel the tone while the sine keeps the note
+                // solid underneath it.
+                const float mixed = filtered + sine * p.sineLevel * 0.85f;
+
+                // A gentle VCA curve thickens the voice and rounds the peaks
+                // the way the original's discrete output stage does.
+                const float warmed = fastTanh (mixed * 1.16f) * (1.0f / 1.16f);
+
+                float value = warmed * amp * layerAmp * tremolo * vintageLevel;
 
                 // On a steal, match the previous voice's last sample and
                 // settle to the new waveform over a fraction of a millisecond.
@@ -893,6 +989,8 @@ struct Voice
     uint32_t varianceState = 0xfeedfaceu;
     float cutoffSmooth = 1400.0f;
     float driftPhase1 = 0.0f, driftPhase2 = 0.0f, driftOffset = 0.0f;
+    float layerDriftPhase = 0.0f, layerCutoffDriftPhase = 0.0f;
+    float twangSemis = 0.0f, twangCurrent = 0.0f;
     float glidePitch = 60.0f, glideTarget = 60.0f, lastNote = 60.0f;
     float vintagePitchCents = 0.0f;
     float vintageCutoffOct = 0.0f;

@@ -157,7 +157,8 @@ jobs:
           expected = [
               "01-blade-brass.png", "02-vangelis-lead.png", "03-neon-pads.png",
               "04-preset-library.png", "05-brass-stab.png", "06-filter-closeup.png",
-              "07-ribbon-keybed.png", "08-blade-runner.png", "09-channel-two.png",
+              "07-vca-sine.png", "08-ribbon-keybed.png", "09-blade-runner.png",
+              "10-channel-two.png",
           ]
 
           shots = sorted(pathlib.Path("docs/screenshots").glob("*.png"))
@@ -283,7 +284,7 @@ jobs:
           base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/latest"
           manifest = {
               "project": "CS-80E",
-              "version": "3.0.0",
+              "version": pathlib.Path("VERSION").read_text().strip(),
               "commit": os.environ["GITHUB_SHA"],
               "builds": {
                   "linux": f"{base}/CS-80E-linux.zip",
@@ -319,7 +320,7 @@ jobs:
             | Linux | [CS-80E-linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-linux.zip) | VST3 + Standalone |
             | macOS | [CS-80E-macos.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-macos.zip) | VST3 + AU + Standalone |
             | Windows | [CS-80E-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-windows.zip) | VST3 + Standalone |
-            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) | 9 PNGs + demo WAV |
+            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) | 10 PNGs + demo WAV |
             | Machine-readable links | [latest.json](https://github.com/${{ github.repository }}/releases/download/latest/latest.json) | JSON |
 
             Built from `${{ github.sha }}`. Checksums are attached as

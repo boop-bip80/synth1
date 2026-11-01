@@ -169,6 +169,16 @@ struct Oscillator
         return pulse (0.5f);
     }
 
+    /** Pure sine at the oscillator frequency. On the CS-80 this path is mixed
+        into the VCA after the filter, so it restores the fundamental without
+        undoing a resonant high-pass. */
+    float sine() noexcept
+    {
+        const float v = std::sin (2.0f * kPi * (float) phase);
+        advance();
+        return v;
+    }
+
 private:
     void advance() noexcept
     {
