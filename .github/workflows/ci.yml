@@ -104,6 +104,20 @@ jobs:
           ls -lh dist
           "$PY" -c "import zipfile; z=zipfile.ZipFile('dist/CS-80E-${{ matrix.label }}.zip'); print('\\n'.join(z.namelist()[:12]))"
 
+      - name: Validate AU (auval)
+        if: runner.os == 'macOS'
+        run: |
+          AU="dist/pkg/AU/CS-80E.component"
+          test -d "$AU" || { echo "AU bundle not packaged"; find dist -maxdepth 5; exit 1; }
+          codesign --force --deep --sign - "$AU"
+          mkdir -p "$HOME/Library/Audio/Plug-Ins/Components"
+          rm -rf "$HOME/Library/Audio/Plug-Ins/Components/CS-80E.component"
+          cp -R "$AU" "$HOME/Library/Audio/Plug-Ins/Components/"
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          echo "Registered Audio Units:"
+          auval -a | grep -i "CS-80E" || true
+          auval -v aumu Cs80 Free
+
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
@@ -254,10 +268,55 @@ jobs:
           path: pluginval.log
           if-no-files-found: warn
 
+  pluginval-windows:
+    name: VST3 validation (Windows, pluginval)
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: CS-80E-windows
+          path: artifacts
+
+      - name: Unpack plugin
+        shell: pwsh
+        run: |
+          Expand-Archive -Path artifacts/CS-80E-windows.zip -DestinationPath plugin -Force
+          $vst3 = Get-ChildItem -Path plugin -Recurse -Directory -Filter '*.vst3' | Select-Object -First 1
+          if (-not $vst3) { throw 'No VST3 bundle found' }
+          "VST3=$($vst3.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-ChildItem -Path $vst3.FullName | Select-Object -First 10
+
+      - name: Download pluginval
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip' -OutFile pluginval.zip
+          Expand-Archive -Path pluginval.zip -DestinationPath pluginval-bin -Force
+          $exe = Get-ChildItem -Path pluginval-bin -Recurse -Filter pluginval.exe | Select-Object -First 1
+          if (-not $exe) { throw 'pluginval.exe not found' }
+          "PLUGINVAL=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Validate
+        shell: pwsh
+        run: |
+          & $env:PLUGINVAL --strictness-level 5 --validate-in-process --skip-gui-tests $env:VST3 2>&1 | Tee-Object -FilePath pluginval-windows.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CS-80E-pluginval-windows-log
+          path: pluginval-windows.log
+          if-no-files-found: warn
+
   publish-latest:
     name: Refresh latest downloads
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    needs: [build, screenshots, pluginval]
+    needs: [build, screenshots, pluginval, pluginval-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -380,10 +439,41 @@ jobs:
           echo "Release assets now:"
           gh release view latest --json assets --jq '.assets[].name'
 
+  verify-latest:
+    name: Verify rolling release
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: publish-latest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p downloaded
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if gh release download latest --dir downloaded --clobber; then
+              ok=1
+              break
+            fi
+            sleep $((attempt * 5))
+          done
+          test "$ok" = 1
+          ls -lh downloaded
+
+      - name: Verify release matches the repository
+        run: python3 tools/verify_release.py --tag latest --dir downloaded
+
   release:
     name: Attach builds to tag release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, screenshots, pluginval]
+    needs: [build, screenshots, pluginval, pluginval-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -402,6 +492,40 @@ jobs:
           cp artifacts/CS-80E-previews/screenshots/*.png release/
           cp artifacts/CS-80E-previews/audio/*.wav release/
           sha256sum release/*.zip > release/SHA256SUMS.txt
+          python3 - <<'PY'
+          import json, os, pathlib
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}"
+          manifest = {
+              "project": "CS-80E",
+              "version": pathlib.Path("VERSION").read_text().strip(),
+              "commit": os.environ["GITHUB_SHA"],
+              "builds": {
+                  "linux": f"{base}/CS-80E-linux.zip",
+                  "macos": f"{base}/CS-80E-macos.zip",
+                  "windows": f"{base}/CS-80E-windows.zip",
+                  "previews": f"{base}/CS-80E-previews.zip",
+                  "checksums": f"{base}/SHA256SUMS.txt",
+              },
+              "formats": {
+                  "linux": ["VST3", "Standalone"],
+                  "macos": ["VST3", "AU", "Standalone"],
+                  "windows": ["VST3", "Standalone"],
+              },
+              "screenshots": [
+                  f"{base}/01-blade-brass.png",
+                  f"{base}/02-vangelis-lead.png",
+                  f"{base}/03-neon-pads.png",
+                  f"{base}/04-preset-library.png",
+                  f"{base}/05-brass-stab.png",
+                  f"{base}/06-filter-closeup.png",
+                  f"{base}/07-vca-sine.png",
+                  f"{base}/08-ribbon-keybed.png",
+                  f"{base}/09-blade-runner.png",
+                  f"{base}/10-channel-two.png",
+              ],
+          }
+          pathlib.Path("release/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
           ls -lh release
 
       - name: Publish tagged release
@@ -416,3 +540,33 @@ jobs:
             release/*.png
             release/*.wav
             release/SHA256SUMS.txt
+            release/latest.json
+
+  verify-tagged-release:
+    name: Verify tagged release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p downloaded
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if gh release download "$GITHUB_REF_NAME" --dir downloaded --clobber; then
+              ok=1
+              break
+            fi
+            sleep $((attempt * 5))
+          done
+          test "$ok" = 1
+          ls -lh downloaded
+
+      - name: Verify release matches the repository
+        run: python3 tools/verify_release.py --tag "$GITHUB_REF_NAME" --dir downloaded
