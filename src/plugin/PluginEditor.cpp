@@ -52,6 +52,14 @@ public:
 
         buildSections();
         buildControls();
+
+        advancedButton.setButtonText ("ADVANCED / MOD");
+        advancedButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff342619));
+        advancedButton.setColour (juce::TextButton::textColourOffId, ui::colour::amber);
+        advancedButton.setTooltip ("Open modulation matrix, Scala tuning and user preset bank (M)");
+        advancedButton.onClick = [this] { owner.openAdvancedPanel(); };
+        advancedButton.setBounds (1230, 110, 148, 34);
+        addAndMakeVisible (advancedButton);
     }
 
     void paint (juce::Graphics& g) override
@@ -203,7 +211,7 @@ public:
                              juce::Justification::centred, ui::monoFont (6.8f), 0.3f);
 
         const double sampleRate = processor.getSampleRate() > 0.0 ? processor.getSampleRate() : 48000.0;
-        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V5.2.0";
+        const auto status = juce::String (sampleRate / 1000.0, 1) + " KHZ  /  8 VOICES  /  V5.3.0";
 
         ui::drawTrackedText (g, "SERIAL 00108  /  MODEL E  /  " + status,
                              { 900, 926, 480, 13 }, ui::colour::textFaint.brighter (0.30f),
@@ -246,6 +254,28 @@ public:
     }
 
     ui::PresetBrowser* getBrowser() { return browser.get(); }
+
+    void addAdvancedPanel (std::unique_ptr<ui::AdvancedPanel> newPanel)
+    {
+        advancedPanel = std::move (newPanel);
+        if (advancedPanel != nullptr)
+        {
+            addAndMakeVisible (*advancedPanel);
+            advancedPanel->setBounds (getLocalBounds());
+            advancedPanel->toFront (true);
+        }
+    }
+
+    void removeAdvancedPanel()
+    {
+        if (advancedPanel != nullptr)
+        {
+            removeChildComponent (advancedPanel.get());
+            advancedPanel.reset();
+        }
+    }
+
+    ui::AdvancedPanel* getAdvancedPanel() { return advancedPanel.get(); }
 
     void repaintAll()
     {
@@ -435,10 +465,12 @@ private:
     ui::VoiceLedStrip voiceLeds;
     ui::RibbonStrip ribbon;
     ui::Cs80Keyboard keyboard;
+    juce::TextButton advancedButton;
 
     std::vector<std::unique_ptr<ui::SectionPanel>> sections;
     std::vector<std::unique_ptr<juce::Component>> controls;
     std::unique_ptr<ui::PresetBrowser> browser;
+    std::unique_ptr<ui::AdvancedPanel> advancedPanel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Content)
 };
@@ -469,6 +501,7 @@ Cs80Editor::~Cs80Editor()
 {
     tooltip.reset();
     closePresetBrowser();
+    closeAdvancedPanel();
     setLookAndFeel (nullptr);
 }
 
@@ -543,6 +576,47 @@ void Cs80Editor::setPresetBrowserHoverForSnapshot (int row)
             browser->setHoverRowForSnapshot (row);
 }
 
+void Cs80Editor::openAdvancedPanel()
+{
+    if (content == nullptr)
+        return;
+
+    if (auto* existing = content->getAdvancedPanel())
+    {
+        existing->toFront (true);
+        return;
+    }
+
+    if (content->getBrowser() != nullptr)
+        content->removeBrowser();
+
+    auto panel = std::make_unique<ui::AdvancedPanel> (processor);
+    auto* panelPtr = panel.get();
+    panelPtr->onClose = [this] { closeAdvancedPanel(); };
+    content->addAdvancedPanel (std::move (panel));
+    panelPtr->grabKeyboardFocus();
+}
+
+void Cs80Editor::closeAdvancedPanel()
+{
+    if (content == nullptr || content->getAdvancedPanel() == nullptr)
+        return;
+
+    juce::Component::SafePointer<Cs80Editor> safeThis (this);
+    juce::MessageManager::callAsync ([safeThis]
+    {
+        if (safeThis != nullptr && safeThis->content != nullptr)
+            safeThis->content->removeAdvancedPanel();
+    });
+}
+
+void Cs80Editor::setAdvancedPageForSnapshot (int page)
+{
+    if (content != nullptr)
+        if (auto* panel = content->getAdvancedPanel())
+            panel->showPageForSnapshot (page);
+}
+
 void Cs80Editor::refreshForSnapshot()
 {
     if (content != nullptr)
@@ -556,6 +630,12 @@ bool Cs80Editor::keyPressed (const juce::KeyPress& key)
         if (content != nullptr && content->getBrowser() != nullptr)
         {
             closePresetBrowser();
+            return true;
+        }
+
+        if (content != nullptr && content->getAdvancedPanel() != nullptr)
+        {
+            closeAdvancedPanel();
             return true;
         }
 
@@ -583,6 +663,12 @@ bool Cs80Editor::keyPressed (const juce::KeyPress& key)
     if (character == 'l' || character == 'L')
     {
         openPresetBrowser();
+        return true;
+    }
+
+    if (character == 'm' || character == 'M')
+    {
+        openAdvancedPanel();
         return true;
     }
 

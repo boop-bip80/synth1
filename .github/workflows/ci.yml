@@ -271,7 +271,8 @@ jobs:
               "01-blade-brass.png", "02-vangelis-lead.png", "03-neon-pads.png",
               "04-preset-library.png", "05-brass-stab.png", "06-filter-closeup.png",
               "07-vca-sine.png", "08-ribbon-keybed.png", "09-blade-runner.png",
-              "10-channel-two.png",
+              "10-channel-two.png", "11-modulation-matrix.png", "12-scala-tuning.png",
+              "13-user-presets.png",
           ]
 
           shots = sorted(pathlib.Path("docs/screenshots").glob("*.png"))
@@ -469,6 +470,9 @@ jobs:
                   f"{base}/08-ribbon-keybed.png",
                   f"{base}/09-blade-runner.png",
                   f"{base}/10-channel-two.png",
+                  f"{base}/11-modulation-matrix.png",
+                  f"{base}/12-scala-tuning.png",
+                  f"{base}/13-user-presets.png",
               ],
           }
           pathlib.Path("release/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
@@ -492,7 +496,7 @@ jobs:
             | Linux | [CS-80E-linux.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-linux.zip) | VST3 + Standalone |
             | macOS | [CS-80E-macos.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-macos.zip) | VST3 + AU + Standalone |
             | Windows | [CS-80E-windows.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-windows.zip) | VST3 + Standalone |
-            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) | 10 PNGs + demo WAV |
+            | Renders + demo | [CS-80E-previews.zip](https://github.com/${{ github.repository }}/releases/download/latest/CS-80E-previews.zip) | 13 PNGs + demo WAV |
             | Machine-readable links | [latest.json](https://github.com/${{ github.repository }}/releases/download/latest/latest.json) | JSON |
 
             Built from `${{ github.sha }}`. Checksums are attached as
@@ -521,7 +525,8 @@ jobs:
           expected="CS-80E-linux.zip CS-80E-macos.zip CS-80E-windows.zip CS-80E-previews.zip cs80-demo.wav latest.json SHA256SUMS.txt"
           for shot in 01-blade-brass 02-vangelis-lead 03-neon-pads 04-preset-library \
                       05-brass-stab 06-filter-closeup 07-vca-sine 08-ribbon-keybed \
-                      09-blade-runner 10-channel-two; do
+                      09-blade-runner 10-channel-two 11-modulation-matrix \
+                      12-scala-tuning 13-user-presets; do
             expected="$expected ${shot}.png"
           done
 
@@ -621,6 +626,9 @@ jobs:
                   f"{base}/08-ribbon-keybed.png",
                   f"{base}/09-blade-runner.png",
                   f"{base}/10-channel-two.png",
+                  f"{base}/11-modulation-matrix.png",
+                  f"{base}/12-scala-tuning.png",
+                  f"{base}/13-user-presets.png",
               ],
           }
           pathlib.Path("release/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")

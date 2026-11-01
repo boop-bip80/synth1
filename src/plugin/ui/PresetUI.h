@@ -34,6 +34,7 @@ private:
     IconButton next { IconButton::Icon::next };
     int cachedIndex = -1;
     bool cachedEdited = false;
+    uint32_t cachedRevision = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetDisplay)
 };

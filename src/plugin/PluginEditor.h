@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/LookAndFeel.h"
+#include "ui/AdvancedPanel.h"
 #include "ui/Performance.h"
 #include "ui/PresetUI.h"
 #include "ui/Widgets.h"
@@ -24,6 +25,9 @@ public:
     void closePresetBrowser();
     bool isPresetBrowserOpen() const;
     void setPresetBrowserHoverForSnapshot (int row);
+    void openAdvancedPanel();
+    void closeAdvancedPanel();
+    void setAdvancedPageForSnapshot (int page);
     void refreshForSnapshot();
 
     static constexpr int designWidth = 1440;

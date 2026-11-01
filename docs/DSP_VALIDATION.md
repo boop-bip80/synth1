@@ -21,6 +21,19 @@ cmake --build build-tests --parallel
 
 Raw runs: [`docs/benchmarks/`](benchmarks/).
 
+### 5.3 regression update
+
+The C++17 headless suite completed **5,255 checks with zero failures** on the
+5.3 source using `g++ -O2 -pthread`. New gates check absolute Scala `.scl`
+pitches, integer ratios, `.kbm` reference frequencies with decimals, mapping
+anchored to the middle note, unassigned-key silence, invalid reference keys and
+overflow rejection without corrupting the active tuning. A separate test
+publishes 3,000 tunings from one thread while 3,000 audio blocks render in
+another, ensuring finite audio and correct final tuning. The audio callback
+reads a pinned immutable snapshot; publication uses three slots and a mutex
+only on the control side. Cross-platform sanitizers and plugin-level state/UI
+checks are run separately by CI and must not be inferred from this local run.
+
 ## 1. Processing latency
 
 The voice path runs at 2× the host rate through a 33-tap linear-phase half-band

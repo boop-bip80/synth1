@@ -78,11 +78,13 @@ void PresetDisplay::timerCallback()
 {
     const int index = processor.currentPresetIndex();
     const bool edited = processor.isPresetEdited();
+    const auto revision = processor.currentPresetRevision();
 
-    if (index != cachedIndex || edited != cachedEdited)
+    if (index != cachedIndex || edited != cachedEdited || revision != cachedRevision)
     {
         cachedIndex = index;
         cachedEdited = edited;
+        cachedRevision = revision;
         repaint();
     }
 }
@@ -167,9 +169,12 @@ void PresetDisplay::paint (juce::Graphics& g)
         g.strokePath (wave, juce::PathStrokeType (1.0f, juce::PathStrokeType::curved));
     }
 
-    drawTrackedText (g, "PRESET  A" + juce::String (index + 1).paddedLeft ('0', 2)
-                            + "   /   " + juce::String (presetCount()).paddedLeft ('0', 2)
-                            + "   ·   FACTORY BANK A   ·   SERIES 5",
+    const auto bankLabel = category == "USER"
+        ? juce::String ("USER PATCH   ·   PERSONAL BANK   ·   SERIES 5")
+        : "PRESET  A" + juce::String (index + 1).paddedLeft ('0', 2)
+              + "   /   " + juce::String (presetCount()).paddedLeft ('0', 2)
+              + "   ·   FACTORY BANK A   ·   SERIES 5";
+    drawTrackedText (g, bankLabel,
                      { (int) inner.getX(), (int) inner.getY(), 420, 10 },
                      colour::amberDim.brighter (1.14f), juce::Justification::centredLeft,
                      trackedFont (6.7f, 1.5f, true), 0.3f);

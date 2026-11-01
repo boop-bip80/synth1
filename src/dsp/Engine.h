@@ -42,11 +42,12 @@ public:
     void setParams (const Params& newParams);
     Params params() const;
 
-    /** Installs a microtuning. Safe to call from the message thread: the table
-        is written into an inactive slot and published atomically, so the audio
-        thread never sees a half-written scale. */
+    /** Publishes a microtuning from a non-audio thread. The audio callback
+        always holds an immutable snapshot until its current chunk finishes. */
     void setTuning (const Tuning& newTuning);
-    const Tuning& tuning() const;
+
+    /** Copies the most recently published tuning. Not for the audio callback. */
+    Tuning tuning() const;
 
     /** Note currently assigned to a voice slot, or -1 when the slot is idle.
         Exposed for the UI, tests and host diagnostics. */

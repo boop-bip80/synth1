@@ -6,7 +6,7 @@
 [![Latest release](https://img.shields.io/github/v/release/boop-bip80/synth1?label=latest&color=ff9d3c)](https://github.com/boop-bip80/synth1/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-ff9d3c.svg)](LICENSE)
 ![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-2b3038)
-![Tests](https://img.shields.io/badge/unit%20checks-5%2C229-7fce9b)
+![Tests](https://img.shields.io/badge/unit%20checks-5%2C255-7fce9b)
 
 <p align="center">
   <img src="docs/screenshots/01-blade-brass.png" width="100%" alt="CS-80E dual-channel panel">
@@ -19,7 +19,14 @@ a dedicated ring carrier, a resonant high-pass into a resonant low-pass, the
 CS-80's two-level filter envelope, polyphonic aftertouch, polyphonic portamento
 and a spring-loaded pitch ribbon.
 
-Version 5.2 is the performance-console release. The panel is rebuilt around a
+Version 5.3 makes the performance console practical to personalize. Click
+**ADVANCED / MOD** (or press **M**) for eight assignable modulation routes,
+Scala `.scl` / `.kbm` microtuning and a searchable user-preset bank with
+save/load, rename, delete, import and export. DAW projects and `.cs80e` user
+patches preserve tuning as well as the sound. Scala pitches and a concurrent
+tuning-publication race have also been corrected.
+
+The 5.2 panel was rebuilt around a
 warm lacquer finish: figured walnut cheeks, brass rails, a chrome badge, ten
 colour-coded voice cards with calibration rails and slot screws, illuminated
 ivory sliders, brushed-metal knobs with jewel arcs, warm amber glass and a
@@ -32,26 +39,30 @@ wavetable mip maps, measured worst-case aliasing at −66 dB (48 kHz), true
 8-sample latency reporting, effects that cannot replay stale audio, and zero
 heap allocations in the audio callback. Eight voices with both channels and
 both effects measure 15.0 % of one core at 48 kHz / 256 frames (0.150× real
-time) on the documented reference machine. The 5.2 suite is **5,229 checks**,
-all passing; see [docs/DSP_VALIDATION.md](docs/DSP_VALIDATION.md) and
+time) on the documented reference machine. The 5.3 headless suite is **5,255
+checks**, all passing in a local C++17 run; see
+[docs/DSP_VALIDATION.md](docs/DSP_VALIDATION.md) and
 [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ---
 
 ## Download the builds
 
-**Current version: 5.2.0.** The links below resolve to the rolling `latest`
-release, which CI refreshes from `main` only after every gated job passes. A
-versioned `v5.1.0` release requires pushing the tag; that publication step is
-documented in [docs/QUALITY_REMEDIATION.md](docs/QUALITY_REMEDIATION.md) and is
-not claimed here until the assets verification has run.
+**Source version: 5.3.0.** The links below point to the rolling `latest`
+release, which CI updates from `main` **only after its gated jobs pass**.
+If a build is still running, the latest download can temporarily be older
+than the source. Check the `version` and `commit` fields in
+[`latest.json`](https://github.com/boop-bip80/synth1/releases/download/latest/latest.json)
+before installing, or use the versioned
+[`v5.3.0` release](https://github.com/boop-bip80/synth1/releases/tag/v5.3.0)
+once its CI publication has completed.
 
 | Platform | Download | Formats |
 | --- | --- | --- |
 | **Linux** | [CS-80E-linux.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-linux.zip) | VST3 + Standalone |
 | **macOS** | [CS-80E-macos.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-macos.zip) | VST3 + AU + Standalone |
 | **Windows** | [CS-80E-windows.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-windows.zip) | VST3 + Standalone |
-| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-previews.zip) | ten PNGs + demo WAV |
+| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-previews.zip) | 13 PNGs + demo WAV |
 | **Build manifest** | [latest.json](https://github.com/boop-bip80/synth1/releases/download/latest/latest.json) | JSON |
 | **Checksums** | [SHA256SUMS.txt](https://github.com/boop-bip80/synth1/releases/download/latest/SHA256SUMS.txt) | SHA-256 |
 
@@ -99,6 +110,14 @@ The CI builds are unsigned. On macOS, right-click the plugin/app and choose
   <img src="docs/screenshots/08-ribbon-keybed.png" width="100%" alt="Lower panel, ribbon and 61-key keybed detail">
 </p>
 
+### New in 5.3: Advanced panel
+
+| Modulation matrix | Scala tuning |
+| --- | --- |
+| ![Eight assignable modulation routes](docs/screenshots/11-modulation-matrix.png) | ![Scala scale and keyboard-map controls](docs/screenshots/12-scala-tuning.png) |
+
+![Searchable user-preset bank](docs/screenshots/13-user-presets.png)
+
 CI renders these from the real editor at up to 2× resolution. On `main` it also
 commits the refreshed images and demo back to `docs/`, and attaches them to the
 latest release.
@@ -109,7 +128,26 @@ latest release.
 Brass chords and aftertouch swells, rendered offline through the real processor
 by the screenshot tool.
 
-## What is new in 5.2
+## What is new in 5.3
+
+- **Modulation matrix on the panel.** Eight routes with ten sources (including
+  pressure, velocity, LFO, envelopes and random), eight destinations and bipolar
+  depth. All 24 route parameters support host automation and project recall.
+- **A personal sound bank.** Save, search, load, rename, delete, import or export
+  `.cs80e` patches. A user patch includes its parameter baseline and any Scala
+  tuning. The bank lives under the OS account's CS-80E application-data folder.
+- **Microtuning controls.** Load `.scl` scale files, optionally add a `.kbm`
+  keyboard map and reset to 12-TET. Mappings respect absolute Scala pitches,
+  fractional reference frequencies, unassigned keys and the specified keyboard
+  range; sessions restore these files' contents without needing the original
+  paths.
+- **Realtime tuning safety.** A three-slot publication protocol prevents
+  rapid tuning changes from overwriting data in the audio callback. A parallel
+  render/update regression test covers the handover.
+- **13 updated preview views.** The screenshot job now renders and checks the
+  Advanced panel alongside the existing performance console and demo audio.
+
+### Previous 5.2 improvements
 
 - **The CS-80 chorus/tremolo switch, in full.** Chorus I is a slower, narrower
   three-tap BBD setting; Chorus II keeps the wide five-tap halo; Tremolo is a
@@ -120,7 +158,7 @@ by the screenshot tool.
   cheeks, brass rails and screws, ten saturated voice cards, a chrome badge,
   engraved ivory fader caps, brushed knobs with jewel-value arcs, a warmer
   preset LCD, a darker sound library and a reworked bronze ribbon and keybed.
-- **Regression tests for the new modes.** The suite grew from 5,176 to 5,229
+- **Regression tests for the new modes.** The 5.2 suite grew from 5,176 to 5,229
   checks, including the two chorus tap sets and the tremolo envelope.
 
 ### 5.1 engine foundations
@@ -195,9 +233,9 @@ by the screenshot tool.
   stereo-pre-delayed plate reverb, a brilliance tilt and a fixed output
   transformer. Both effects have per-sample wet/dry smoothing, real tails and a
   clean cold-start, so automating them cannot replay stale audio.
-- **36 factory patches**, a category-filtered four-column preset library,
-  tooltips and double-click parameter reset. The preset baseline is stored with
-  the project state, so a tweaked factory patch still reads as edited after the
+- **36 factory patches** plus a searchable personal preset bank with
+  save/load, rename, delete, import and export. The preset baseline is stored
+  with the project state, so a tweaked patch still reads as edited after the
   project is reopened.
 - **Resizable UI** that keeps its hardware proportions from 1080×720 upward.
   Small legends were raised and secondary contrast improved in 5.1; a second
@@ -219,6 +257,7 @@ by the screenshot tool.
 | **RIBBON** | Drag left/right for pitch; release to spring back. |
 | **KEYBED** | 61 keys, velocity from the vertical touch point, poly pressure from a held drag. |
 | **LCD / LIBRARY** | Previous/next patch arrows; click the glass for the 36-patch library. |
+| **ADVANCED / MOD** | Eight modulation routes; `.scl` / `.kbm` microtuning; searchable saved-patch bank. Press **M** to open; **Esc** to close. |
 
 ## How the CI works
 
@@ -229,9 +268,9 @@ by the screenshot tool.
 | `sanitizers` | The same suite under AddressSanitizer and UndefinedBehaviorSanitizer. |
 | `version-check` | `VERSION`, the CMake project version and a `v*` tag must agree. |
 | `build` | VST3 + Standalone compile on Linux, macOS and Windows (AU also on macOS); the macOS AU is validated with `auval`; tests pass; zips are downloadable. |
-| `screenshots` | The real editor is rendered offscreen to ten PNGs plus a demo WAV; refreshed renders are committed back to `main`. |
+| `screenshots` | The real editor is rendered offscreen to 13 PNGs plus a demo WAV; refreshed renders are committed back to `main`. |
 | `pluginval` | The Linux and Windows VST3 builds are validated by pluginval at strictness level 5. |
-| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and ten previews are attached to the rolling `latest` release only after the version, test, analysis, sanitizer, build, render and validation jobs succeed. |
+| `publish-latest` | Linux, macOS and Windows zips, checksums, `latest.json` and 13 previews are attached to the rolling `latest` release only after the version, test, analysis, sanitizer, build, render and validation jobs succeed. |
 | `verify-latest` | The published rolling assets are downloaded back and checked against `docs/`, `SHA256SUMS.txt` and `latest.json`. |
 | `release` | A `v*` tag publishes a versioned GitHub Release with all platform zips, renders, checksums and a versioned `latest.json`. |
 | `verify-tagged-release` | The same integrity check runs against the versioned release. |
@@ -284,7 +323,7 @@ src/dsp/            Pure C++17 engine — no JUCE, fully unit-testable
                       ensemble, stereo-pre-delay plate, transparent limiter
   Presets.*           36 factory patches
   Oscillator.h        band-limited wavetable mip maps + oscillators
-  tests/              5,229 headless assertions, FFT alias analysis
+  tests/              5,255 headless assertions, FFT alias analysis
 
 src/plugin/         JUCE wrapper
   PluginProcessor.*   APVTS, presets, MIDI dispatch, state persistence

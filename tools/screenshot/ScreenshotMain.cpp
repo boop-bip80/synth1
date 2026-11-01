@@ -33,6 +33,7 @@ struct Shot
     int browserHover;
     float scale;
     juce::Rectangle<int> crop;
+    int advancedPage = -1;
 };
 
 int presetIndexByName (const juce::String& name)
@@ -78,6 +79,12 @@ void renderShot (const Shot& shot, const juce::File& directory)
         {
             cs80Editor->openPresetBrowser();
             cs80Editor->setPresetBrowserHoverForSnapshot (shot.browserHover);
+        }
+
+        if (shot.advancedPage >= 0)
+        {
+            cs80Editor->openAdvancedPanel();
+            cs80Editor->setAdvancedPageForSnapshot (shot.advancedPage);
         }
 
         cs80Editor->refreshForSnapshot();
@@ -247,6 +254,9 @@ int main (int argc, char** argv)
         { "09-blade-runner.png", "Blade Runner", { 36, 48, 51, 55, 60, 63 }, false, 0, 1.10f, {} },
         { "10-channel-two.png", "Deep Choir", { 52, 59, 64, 68 }, false, 0, 2.00f,
           juce::Rectangle<int> (50, 570, 430, 218) },
+        { "11-modulation-matrix.png", "Vangelis Lead", { 60, 64, 67 }, false, 0, 1.00f, {}, 0 },
+        { "12-scala-tuning.png", "Glass Choir", { 60, 64, 67 }, false, 0, 1.00f, {}, 1 },
+        { "13-user-presets.png", "Blade Brass", { 48, 55, 60 }, false, 0, 1.00f, {}, 2 },
     };
 
     for (const auto& shot : shots)

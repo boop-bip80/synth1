@@ -16,6 +16,7 @@
 #include <new>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace cs80;
@@ -1792,7 +1793,7 @@ void testMicrotuning()
     // A five-note scale: C, D, E, G, A and the octave.
     Tuning pentatonic;
     std::string error = "not set";
-    const std::string scale = "! test scale\nMajor pentatonic\n5\n200.0\n200.0\n300.0\n200.0\n300.0\n";
+    const std::string scale = "! test scale\nMajor pentatonic\n5\n200.0\n400.0\n700.0\n900.0\n2/1\n";
     CHECK (pentatonic.loadScala (scale, &error));
     CHECK (error.empty());
     CHECK (! pentatonic.isEqualTemperament());
@@ -1803,6 +1804,23 @@ void testMicrotuning()
     CHECK_NEAR (pentatonic.noteFrequency (62),
                 261.6256 * std::exp2 (400.0 / 1200.0), 0.05f);
     CHECK_NEAR (pentatonic.noteFrequency (65), 261.6256 * 2.0, 0.05f);
+
+    // The standard Scala format gives ABSOLUTE pitches, not consecutive
+    // intervals. The bare integer 2 represents the ratio 2/1, not 2 cents.
+    Tuning integerRatio;
+    CHECK (integerRatio.loadScala ("One octave\n1\n2\n", &error));
+    CHECK_NEAR (integerRatio.noteFrequency (61), 261.6256 * 2.0, 0.05f);
+    CHECK (integerRatio.name() == "One octave");
+
+    Tuning descending;
+    CHECK (descending.loadScala ("Negative note\n2\n-5.0\n2/1\n", &error));
+    CHECK (descending.noteFrequency (61) < descending.noteFrequency (60));
+
+    Tuning badRatio;
+    CHECK (! badRatio.loadScala ("bad\n1\n2/1/1\n", &error));
+    CHECK (badRatio.isEqualTemperament());
+    CHECK (! badRatio.loadScala ("Overflowing period\n1\n100000.0\n", &error));
+    CHECK (badRatio.isEqualTemperament());
 
     // Malformed input is rejected and leaves the previous tuning untouched.
     Tuning invalid;
@@ -1821,6 +1839,36 @@ void testMicrotuning()
     CHECK (error.empty());
     CHECK_NEAR (baroque.noteFrequency (69), 432.0f, 0.01f);
     CHECK_NEAR (baroque.noteFrequency (57), 216.0f, 0.01f);
+
+    // .kbm reference frequencies may contain fractional Hz, and the first
+    // mapping entry belongs to the declared MIDDLE note, not the first note.
+    Tuning shifted;
+    const std::string shiftedMapping = "5\n0\n127\n61\n61\n432.5\n12\n"
+                                       "0\n2\n4\n6\n8\n";
+    CHECK (shifted.loadKeyboardMapping (shiftedMapping, &error));
+    CHECK_NEAR (shifted.noteFrequency (61), 432.5f, 0.01f);
+    CHECK_NEAR (shifted.noteFrequency (62), 432.5 * std::exp2 (2.0 / 12.0), 0.02f);
+    CHECK_NEAR (shifted.noteFrequency (66), 865.0f, 0.02f);
+
+    Tuning unmapped;
+    const std::string unmappedMapping = "3\n60\n72\n60\n60\n440.0\n3\n0\nx\n2\n";
+    CHECK (unmapped.loadKeyboardMapping (unmappedMapping, &error));
+    CHECK_NEAR (unmapped.noteFrequency (60), 440.0f, 0.01f);
+    CHECK (unmapped.noteFrequency (61) == 0.0);
+    CHECK_NEAR (unmapped.noteFrequency (59), 246.9417f, 0.02f);
+
+    Engine muted;
+    muted.prepare (48000.0);
+    muted.setTuning (unmapped);
+    muted.noteOn (61, 1.0f);
+    CHECK (peakOf (render (muted, 2048)) < 0.000001f);
+
+    CHECK (! unmapped.loadKeyboardMapping ("3\n60\n72\n60\n61\n440.0\n3\n0\nx\n2\n", &error));
+    CHECK (unmapped.noteFrequency (61) == 0.0);
+    CHECK (! unmapped.loadKeyboardMapping ("3extra\n60\n72\n60\n60\n440.0\n3\n0\nx\n2\n", &error));
+    CHECK (! unmapped.loadKeyboardMapping ("1\n0\n127\n60\n60\n1e308\n1\n0\n", &error));
+    CHECK (unmapped.noteFrequency (61) == 0.0);
+    CHECK (std::isfinite (unmapped.frequencyForNote (61.5)));
 
     // The engine must actually use the table: an A3 should render at 216 Hz.
     Params p = plainPatch();
@@ -1842,6 +1890,45 @@ void testMicrotuning()
     const float frequency = estimateFrequency (tail, 48000.0);
     CHECK (allFinite (buffer));
     CHECK_NEAR (frequency, 216.0f, 1.5f);
+}
+
+void testConcurrentTuningPublication()
+{
+    std::printf ("- concurrent tuning publication\n");
+
+    Engine engine;
+    engine.prepare (48000.0);
+    engine.setParams (plainPatch());
+    engine.noteOn (69, 0.75f);
+
+    Tuning concert, alternate;
+    alternate.setEqualTemperament (432.5);
+    std::atomic<bool> start { false };
+
+    std::thread publisher ([&]
+    {
+        while (! start.load())
+            std::this_thread::yield();
+
+        for (int i = 0; i < 3000; ++i)
+            engine.setTuning ((i & 1) != 0 ? concert : alternate);
+    });
+
+    start.store (true);
+    std::array<float, 128> left {}, right {};
+    bool finite = true;
+    for (int i = 0; i < 3000; ++i)
+    {
+        engine.process (left.data(), right.data(), (int) left.size());
+        for (float sample : left)
+            finite = finite && std::isfinite (sample);
+        for (float sample : right)
+            finite = finite && std::isfinite (sample);
+    }
+
+    publisher.join();
+    CHECK (finite);
+    CHECK_NEAR (engine.tuning().noteFrequency (69), 440.0f, 0.01f);
 }
 
 void testModulationMatrix()
@@ -2045,6 +2132,7 @@ int main()
     testPolyphonyAndStealing();
     testTuning();
     testMicrotuning();
+    testConcurrentTuningPublication();
     testModulationMatrix();
     testOctaveSwitch();
     testSubOscillator();

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(CS80E VERSION 5.2.0 LANGUAGES C CXX)
+project(CS80E VERSION 5.3.0 LANGUAGES C CXX)
 
 if(MSVC)
     # The editor uses UTF-8 punctuation in its labels. Compile every target as

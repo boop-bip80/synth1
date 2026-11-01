@@ -14,8 +14,9 @@ else()
 endif()
 
 if(CS80_BUILD_TESTS)
+    find_package(Threads REQUIRED)
     add_executable(cs80_tests tests/DspTests.cpp)
-    target_link_libraries(cs80_tests PRIVATE cs80_dsp)
+    target_link_libraries(cs80_tests PRIVATE cs80_dsp Threads::Threads)
 
     if(NOT WIN32)
         target_link_libraries(cs80_tests PRIVATE m)

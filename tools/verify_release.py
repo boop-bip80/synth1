@@ -34,6 +34,9 @@ SCREENSHOTS = [
     "08-ribbon-keybed.png",
     "09-blade-runner.png",
     "10-channel-two.png",
+    "11-modulation-matrix.png",
+    "12-scala-tuning.png",
+    "13-user-presets.png",
 ]
 
 ZIPS = [
@@ -200,7 +203,7 @@ def main() -> None:
     checks.check(manifest.get("formats") == FORMATS, "latest.json formats are current")
     checks.check(
         manifest.get("screenshots") == [f"{base}/{name}" for name in SCREENSHOTS],
-        f"latest.json lists the ten screenshots on {args.tag}",
+        f"latest.json lists the {len(SCREENSHOTS)} screenshots on {args.tag}",
     )
 
     try:

@@ -1,5 +1,36 @@
 # Changelog
 
+## 5.3.0 — user presets, modulation and Scala tuning
+
+### Play and save
+
+- Added an **Advanced / Mod** panel (keyboard shortcut **M**) with all eight
+  host-automatable modulation routes: source, destination and bipolar depth.
+- Added a searchable on-disk `.cs80e` user-preset bank with save, load, rename,
+  delete confirmation, import and export. Full patch state, unedited baseline and
+  microtuning travel with each user preset.
+- Added Scala `.scl` scales and optional `.kbm` keyboard mappings to the UI.
+  Both are restored with DAW projects. Fixed Scala intervals being incorrectly
+  summed, bare integer ratio handling, fractional reference frequencies,
+  reference/middle key mapping and unmapped-key silence.
+- Fixed a race where repeated tuning changes could overwrite the table being
+  read by the audio thread. Publication now uses three pinned snapshots; the
+  audio thread never acquires a lock.
+- The preset LCD updates when a user preset is saved or loaded and identifies
+  the personal bank rather than presenting a factory patch number.
+
+### Verification and downloads
+
+- Extended the headless suite to **5,255 checks** (0 failures in a local g++
+  run), including concurrent tuning publication and Scala edge cases.
+- The offline renderer now produces **13 screenshots**: the original ten plus
+  modulation matrix, microtuning and user-preset views. CI validates each
+  render, publishes them with the platform binaries and verifies release assets
+  against repository renders.
+- Tagged and rolling binary publication remains dependent on CI, pluginval,
+  AU validation, analysis and sanitizer jobs. Real DAW/CS-80 comparisons remain
+  separate validation activities, not claims made by the automated suite.
+
 ## 5.2.0 — performance console and ensemble modes
 
 ### Sound
@@ -25,7 +56,7 @@
   bronze ribbon and keybed.
 - The VCA card no longer clips its subtitle, and the footer reports V5.2.0.
 
-## Unreleased — modulation matrix and microtuning (engine only)
+## Previously unreleased engine work — modulation matrix and microtuning
 
 - Eight-slot modulation matrix in the engine: LFO, velocity, channel and poly
   pressure, mod wheel, key track, filter/amp envelopes and per-note random to
@@ -36,10 +67,8 @@
 - The suite grew from 4,007 to 5,176 checks, including octave-accurate pitch
   routing, pan/amplitude/cutoff routing, resonance stability, Scala parsing and
   a 432 Hz keyboard mapping that renders A3 at 216 Hz.
-- **Not shipped yet:** neither feature has panel controls or plugin-state
-  persistence. They are reachable from host automation (matrix parameters) or
-  engine API only. The 5.1 panel is unchanged and no new release was published
-  from this work.
+- **Historical note:** these were engine-only at the time of this change;
+  version 5.3 adds the panel and state integration described above.
 
 ## 5.1.0 — DSP validation and reliability overhaul
 

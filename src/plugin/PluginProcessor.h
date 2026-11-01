@@ -48,6 +48,18 @@ public:
     juce::String currentPresetCategory() const;
     juce::String currentPresetBlurb() const;
     bool isPresetEdited() const;
+    uint32_t currentPresetRevision() const { return presetRevision.load (std::memory_order_relaxed); }
+
+    // Disk operations belong on the message thread. The .cs80e file contains
+    // a complete plugin state, including the patch baseline and microtuning.
+    bool saveUserPreset (const juce::File& file, juce::String& error);
+    bool loadUserPreset (const juce::File& file, juce::String& error);
+    static juce::File userPresetDirectory();
+
+    bool loadScalaScale (const juce::String& text, juce::String& error);
+    bool loadScalaMapping (const juce::String& text, juce::String& error);
+    void resetMicrotuning();
+    juce::String tuningDescription() const;
 
     void setRibbon (float normalised);
     float ribbonValue() const { return ribbon.load (std::memory_order_relaxed); }
@@ -68,6 +80,10 @@ private:
 
     Params presetParams;
     std::atomic<int> presetIndex { 0 };
+    std::atomic<uint32_t> presetRevision { 0 };
+    mutable juce::CriticalSection stateMetadataLock;
+    juce::String userPresetName;
+    juce::String scalaScaleText, scalaMappingText;
     std::atomic<float> ribbon { 0.0f };
     std::atomic<float> modWheelValue { 0.0f };
     std::atomic<float> channelPressureValue { 0.0f };

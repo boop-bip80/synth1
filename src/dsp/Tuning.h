@@ -5,6 +5,8 @@
 #include <cctype>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -36,8 +38,10 @@ public:
     /** Restores 12-TET and the default chromatic keyboard mapping. */
     void setEqualTemperament (double a4 = 440.0)
     {
-        if (! (a4 > 0.0))
+        if (! (a4 > 0.0) || ! std::isfinite (a4))
             a4 = 440.0;
+
+        a4 = std::clamp (a4, 1.0, 20000.0);
 
         for (int note = 0; note < kNumNotes; ++note)
             table[(size_t) note] = a4 * std::exp2 (((double) note - 69.0) / 12.0);
@@ -90,8 +94,13 @@ public:
         const double f0 = table[(size_t) lower];
         const double f1 = table[(size_t) upper];
 
-        if (fraction <= 0.0 || f1 <= 0.0 || f0 <= 0.0)
+        if (fraction <= 0.0)
             return f0;
+
+        // A keyboard mapping may leave some keys unmapped. Never interpolate
+        // logarithms of zero or turn a bent, mapped note into a sub-Hz tone.
+        if (f0 <= 0.0 || f1 <= 0.0)
+            return f0 > 0.0 ? f0 : f1;
 
         const double log0 = std::log2 (f0);
         const double log1 = std::log2 (f1);
@@ -121,45 +130,49 @@ public:
         cents.reserve ((size_t) count + 1);
         cents.push_back (0.0);
 
-        double total = 0.0;
-
         for (int i = 0; i < count; ++i)
         {
-            double intervalCents = 0.0;
+            double absoluteCents = 0.0;
 
-            if (! parseInterval (lines[(size_t) i + 2], intervalCents)
-                || ! std::isfinite (intervalCents)
-                || intervalCents <= 0.0
-                || intervalCents > 100000.0)
+            if (! parseInterval (lines[(size_t) i + 2], absoluteCents)
+                || ! std::isfinite (absoluteCents)
+                || std::abs (absoluteCents) > 100000.0)
                 return fail (error, "not a Scala scale: invalid interval on line "
                                        + std::to_string (i + 3));
 
-            total += intervalCents;
-            cents.push_back (total);
+            // .scl entries are absolute pitches relative to the implicit 1/1,
+            // not steps to add together. Real files commonly contain
+            // 200.0, 400.0, 700.0, 900.0, 2/1.
+            cents.push_back (absoluteCents);
         }
 
-        if (! (total > 1.0) || ! std::isfinite (total))
+        const double period = cents.back();
+
+        if (! (period > 1.0) || ! std::isfinite (period))
             return fail (error, "not a Scala scale: empty octave");
 
         std::vector<double> newScale;
         newScale.reserve ((size_t) count + 1);
 
-        // scala files may use a non-2/1 period. Normalise the period itself so
-        // degree-to-note mapping stays monotonic, but keep every interval
-        // relative to it instead of silently forcing an octave.
+        // Scala files can use a non-2/1 period, so preserve every explicitly
+        // declared absolute pitch and the final period without rescaling.
         for (double c : cents)
             newScale.push_back (c);
 
         // Replace only after everything parsed.
-        scaleCents = std::move (newScale);
-        periodCents = total;
-        description = newDescription.empty() ? "Scala scale" : newDescription;
-        equalTemperament = false;
+        Tuning next = *this;
+        next.scaleCents = std::move (newScale);
+        next.periodCents = period;
+        next.description = newDescription.empty() ? "Scala scale" : newDescription;
+        next.equalTemperament = false;
 
         // A scale without an explicit keyboard mapping uses the scale's own
-        // size as the map, anchored at A4 (as the engine always has).
-        configureDefaultMap();
-        rebuild();
+        // size as the map, anchored at middle C.
+        next.configureDefaultMap();
+        if (! next.rebuild())
+            return fail (error, "not a Scala scale: pitches exceed the supported range");
+
+        *this = std::move (next);
 
         if (error != nullptr)
             error->clear();
@@ -177,21 +190,26 @@ public:
 
         int values[7] {};
 
-        for (int i = 0; i < 7; ++i)
+        for (int i : { 0, 1, 2, 3, 4, 6 })
             if (! parseInt (lines[(size_t) i], values[i]))
                 return fail (error, "not a Scala mapping: invalid header value");
+
+        double newReferenceFrequency = 0.0;
+        if (! parseReferenceFrequency (lines[5], newReferenceFrequency)
+            || newReferenceFrequency <= 0.0)
+            return fail (error, "not a Scala mapping: invalid reference frequency");
 
         const int newMapSize = values[0];
         const int newFirst = values[1];
         const int newLast = values[2];
         const int newOctaveDegree = values[6];
 
-        if (newMapSize < 1 || newMapSize > 127
+        if (newMapSize < 0 || newMapSize > 127
             || newFirst < 0 || newFirst > 127
             || newLast < newFirst || newLast > 127
+            || values[3] < 0 || values[3] > 127
             || values[4] < 0 || values[4] > 127
-            || values[5] <= 0
-            || newOctaveDegree < 1 || newOctaveDegree > scaleNoteCount())
+            || newOctaveDegree < 0 || newOctaveDegree > 4096)
             return fail (error, "not a Scala mapping: out-of-range header");
 
         // The last line is the mapping used for keys above `last note`.
@@ -205,28 +223,45 @@ public:
         {
             int degree = 0;
 
+            if (lines[(size_t) i + 7] == "x" || lines[(size_t) i + 7] == "X")
+            {
+                newEntries.push_back (kUnmappedDegree);
+                continue;
+            }
+
             if (! parseInt (lines[(size_t) i + 7], degree))
                 return fail (error, "not a Scala mapping: invalid entry");
 
-            if (degree < -1 || degree >= newOctaveDegree)
+            if (degree < -4096 || degree > 4096)
                 return fail (error, "not a Scala mapping: entry outside the octave");
 
             newEntries.push_back (degree);
         }
 
-        mapSize = newMapSize;
-        mapFirstNote = newFirst;
-        mapLastNote = newLast;
-        mapMiddleNote = values[3];
-        mapReferenceNote = values[4];
-        mapReferenceFrequency = (double) values[5];
-        mapOctaveDegree = newOctaveDegree;
-        mapEntries = std::move (newEntries);
+        if (newMapSize > 0)
+        {
+            const int referenceOffset = values[4] - values[3];
+            const int index = (referenceOffset % newMapSize + newMapSize) % newMapSize;
 
-        if (! (mapReferenceFrequency > 0.0))
-            return fail (error, "not a Scala mapping: reference frequency must be positive");
+            if (newEntries[(size_t) index] == kUnmappedDegree)
+                return fail (error, "not a Scala mapping: reference key is unmapped");
+        }
 
-        rebuild();
+        Tuning next = *this;
+        next.mapSize = newMapSize;
+        next.mapFirstNote = newFirst;
+        next.mapLastNote = newLast;
+        next.mapMiddleNote = values[3];
+        next.mapReferenceNote = values[4];
+        next.mapReferenceFrequency = newReferenceFrequency;
+        next.mapOctaveDegree = newOctaveDegree;
+        next.mapEntries = std::move (newEntries);
+        next.equalTemperament = false;
+
+        if (! next.rebuild())
+            return fail (error, "not a Scala mapping: pitches exceed the supported range");
+
+        *this = std::move (next);
 
         if (error != nullptr)
             error->clear();
@@ -235,6 +270,8 @@ public:
     }
 
 private:
+    static constexpr int kUnmappedDegree = std::numeric_limits<int>::min();
+
     static bool fail (std::string* error, const std::string& message)
     {
         if (error != nullptr)
@@ -290,11 +327,30 @@ private:
         try
         {
             std::size_t used = 0;
-            const int parsed = std::stoi (trim (text), &used);
+            const std::string stripped = trim (text);
+            const int parsed = std::stoi (stripped, &used);
 
-            if (used == 0)
+            if (used != stripped.size())
                 return false;
 
+            value = parsed;
+            return true;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    static bool parseReferenceFrequency (const std::string& text, double& value)
+    {
+        try
+        {
+            const std::string stripped = trim (text);
+            std::size_t used = 0;
+            const double parsed = std::stod (stripped, &used);
+            if (used != stripped.size() || ! std::isfinite (parsed))
+                return false;
             value = parsed;
             return true;
         }
@@ -326,7 +382,6 @@ private:
     /** Scala intervals are either a ratio (`3/2`) or a value in cents. */
     static bool parseInterval (const std::string& line, double& cents)
     {
-        double centsPerPeriod = 1200.0; // Scala's convention for .scl
         const std::string value = trim (line);
 
         if (value.empty())
@@ -341,10 +396,23 @@ private:
             if (! parseDouble (value, raw))
                 return false;
 
-            // A bare number is a value in cents.
-            cents = raw;
-            return true;
+            // A period denotes cents; an integer without a period denotes a
+            // ratio over 1 (the documented Scala .scl convention).
+            if (value.find ('.') != std::string::npos)
+            {
+                cents = raw;
+                return true;
+            }
+
+            if (raw <= 0.0)
+                return false;
+
+            cents = 1200.0 * std::log2 (raw);
+            return std::isfinite (cents);
         }
+
+        if (value.find ('/', slash + 1) != std::string::npos)
+            return false;
 
         double numerator = 0.0, denominator = 0.0;
 
@@ -353,13 +421,12 @@ private:
             || numerator <= 0.0 || denominator <= 0.0)
             return false;
 
-        cents = centsPerPeriod * std::log2 (numerator / denominator);
+        cents = 1200.0 * std::log2 (numerator / denominator);
         return std::isfinite (cents);
     }
 
     /** Called after a new scale is loaded: use the scale size as the map and
-        anchor middle C so a scale root lands where musicians expect it. In
-        12-TET this is identical to the previous A4 = 440 calculation. */
+        anchor middle C so a scale root lands where musicians expect it. */
     void configureDefaultMap()
     {
         mapSize = scaleNoteCount();
@@ -391,30 +458,15 @@ private:
     int degreeForNote (int note) const
     {
         if (mapEntries.empty() || mapSize <= 0)
-            return note;
+            return note - mapMiddleNote;
 
         const int size = std::max (1, mapSize);
-
-        if (note < mapFirstNote)
-        {
-            // Extend the mapping downward one map at a time. Scala's own
-            // reference implementation does the same.
-            const int offset = floorDiv (note - mapFirstNote, size);
-            const int index = mod (note - mapFirstNote, size);
-            const int entry = mapEntries[(size_t) index];
-            return entry + offset * mapOctaveDegree;
-        }
-
-        if (note <= mapLastNote)
-        {
-            const int index = note - mapFirstNote;
-            const int entry = mapEntries[(size_t) (index % size)];
-            return entry + floorDiv (index, size) * mapOctaveDegree;
-        }
-
-        const int index = note - mapFirstNote;
-        const int entry = mapEntries[(size_t) (index % size)];
-        return entry + floorDiv (index, size) * mapOctaveDegree;
+        const int offset = note - mapMiddleNote;
+        const int entry = mapEntries[(size_t) mod (offset, size)];
+        if (entry == kUnmappedDegree)
+            return kUnmappedDegree;
+        const int octaveDegree = mapOctaveDegree == 0 ? scaleNoteCount() : mapOctaveDegree;
+        return entry + floorDiv (offset, size) * octaveDegree;
     }
 
     double centsForDegree (int degree) const
@@ -425,17 +477,43 @@ private:
         return scaleCents[(size_t) index] + (double) octave * periodCents;
     }
 
-    void rebuild()
+    bool rebuild()
     {
         const double referenceCents = centsForDegree (degreeForNote (mapReferenceNote));
         const double referenceFrequency = mapReferenceFrequency > 0.0 ? mapReferenceFrequency : 440.0;
+        std::array<double, kNumNotes> newTable {};
+
+        if (! std::isfinite (referenceCents))
+            return false;
 
         for (int note = 0; note < kNumNotes; ++note)
         {
-            const double cents = centsForDegree (degreeForNote (note));
-            table[(size_t) note] = referenceFrequency
+            if (note < mapFirstNote || note > mapLastNote)
+            {
+                // Outside the retuning range the standard 12-TET pitch remains.
+                newTable[(size_t) note] = 440.0 * std::exp2 (((double) note - 69.0) / 12.0);
+                continue;
+            }
+
+            const int degree = degreeForNote (note);
+            if (degree == kUnmappedDegree)
+            {
+                newTable[(size_t) note] = 0.0;
+                continue;
+            }
+
+            const double cents = centsForDegree (degree);
+            const double frequency = referenceFrequency
                                  * std::exp2 ((cents - referenceCents) / 1200.0);
+
+            if (! std::isfinite (frequency) || frequency <= 0.0)
+                return false;
+
+            newTable[(size_t) note] = frequency;
         }
+
+        table = newTable;
+        return true;
     }
 
     std::array<double, kNumNotes> table {};

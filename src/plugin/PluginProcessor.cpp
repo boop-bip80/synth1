@@ -243,11 +243,22 @@ void Cs80AudioProcessor::loadPreset (int index)
 
     presetParams = p;
     presetIndex.store (index, std::memory_order_relaxed);
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        userPresetName.clear();
+    }
+    presetRevision.fetch_add (1, std::memory_order_relaxed);
     updateHostDisplay();
 }
 
 juce::String Cs80AudioProcessor::currentPresetName() const
 {
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        if (userPresetName.isNotEmpty())
+            return userPresetName;
+    }
+
     const auto& presets = factoryPresets();
     const int index = currentPresetIndex();
 
@@ -259,6 +270,12 @@ juce::String Cs80AudioProcessor::currentPresetName() const
 
 juce::String Cs80AudioProcessor::currentPresetCategory() const
 {
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        if (userPresetName.isNotEmpty())
+            return "USER";
+    }
+
     const auto& presets = factoryPresets();
     const int index = currentPresetIndex();
 
@@ -270,6 +287,12 @@ juce::String Cs80AudioProcessor::currentPresetCategory() const
 
 juce::String Cs80AudioProcessor::currentPresetBlurb() const
 {
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        if (userPresetName.isNotEmpty())
+            return "User patch  /  saved with full plugin state";
+    }
+
     const auto& presets = factoryPresets();
     const int index = currentPresetIndex();
 
@@ -296,6 +319,146 @@ bool Cs80AudioProcessor::isPresetEdited() const
     return false;
 }
 
+//==============================================================================
+juce::File Cs80AudioProcessor::userPresetDirectory()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+        .getChildFile ("CS-80E").getChildFile ("Presets");
+}
+
+bool Cs80AudioProcessor::saveUserPreset (const juce::File& destination, juce::String& error)
+{
+    const auto file = destination.withFileExtension (".cs80e");
+    const auto name = file.getFileNameWithoutExtension().trim();
+    if (name.isEmpty())
+    {
+        error = "Enter a preset name first.";
+        return false;
+    }
+
+    juce::String previousName;
+    const Params previousBaseline = presetParams;
+    presetParams = snapshotParams();
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        previousName = userPresetName;
+        userPresetName = name;
+    }
+
+    juce::MemoryBlock data;
+    getStateInformation (data);
+
+    if (data.isEmpty() || ! file.replaceWithData (data.getData(), data.getSize()))
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        userPresetName = previousName;
+        presetParams = previousBaseline;
+        error = "Could not write the preset file.";
+        return false;
+    }
+
+    presetRevision.fetch_add (1, std::memory_order_relaxed);
+    error.clear();
+    return true;
+}
+
+bool Cs80AudioProcessor::loadUserPreset (const juce::File& file, juce::String& error)
+{
+    if (! file.existsAsFile() || file.getSize() > 4 * 1024 * 1024)
+    {
+        error = "Preset is missing or exceeds the 4 MB size limit.";
+        return false;
+    }
+
+    juce::MemoryBlock data;
+    if (! file.loadFileAsData (data) || data.isEmpty())
+    {
+        error = "Could not read this preset file.";
+        return false;
+    }
+
+    auto xml = getXmlFromBinary (data.getData(), (int) data.getSize());
+    if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
+    {
+        error = "Not a valid CS-80E preset.";
+        return false;
+    }
+
+    setStateInformation (data.getData(), (int) data.getSize());
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        userPresetName = file.getFileNameWithoutExtension();
+    }
+    presetRevision.fetch_add (1, std::memory_order_relaxed);
+    updateHostDisplay();
+    error.clear();
+    return true;
+}
+
+bool Cs80AudioProcessor::loadScalaScale (const juce::String& text, juce::String& error)
+{
+    Tuning next;
+    std::string reason;
+    if (! next.loadScala (text.toStdString(), &reason))
+    {
+        error = juce::String (reason);
+        return false;
+    }
+
+    engine.setTuning (next);
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        scalaScaleText = text;
+        scalaMappingText.clear(); // a new scale invalidates the old mapping
+    }
+    error.clear();
+    return true;
+}
+
+bool Cs80AudioProcessor::loadScalaMapping (const juce::String& text, juce::String& error)
+{
+    juce::String scale;
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        scale = scalaScaleText;
+    }
+
+    Tuning next;
+    std::string reason;
+    if (scale.isNotEmpty() && ! next.loadScala (scale.toStdString(), &reason))
+    {
+        error = juce::String (reason);
+        return false;
+    }
+
+    if (! next.loadKeyboardMapping (text.toStdString(), &reason))
+    {
+        error = juce::String (reason);
+        return false;
+    }
+
+    engine.setTuning (next);
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        scalaMappingText = text;
+    }
+    error.clear();
+    return true;
+}
+
+void Cs80AudioProcessor::resetMicrotuning()
+{
+    engine.setTuning (Tuning {});
+    const juce::ScopedLock lock (stateMetadataLock);
+    scalaScaleText.clear();
+    scalaMappingText.clear();
+}
+
+juce::String Cs80AudioProcessor::tuningDescription() const
+{
+    return juce::String (engine.tuning().name());
+}
+
 void Cs80AudioProcessor::setRibbon (float normalised)
 {
     ribbon.store (juce::jlimit (-1.0f, 1.0f, normalised), std::memory_order_relaxed);
@@ -306,7 +469,14 @@ void Cs80AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("presetIndex", currentPresetIndex(), nullptr);
-    state.setProperty ("stateVersion", 2, nullptr);
+    state.setProperty ("stateVersion", 3, nullptr);
+
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        state.setProperty ("userPresetName", userPresetName, nullptr);
+        state.setProperty ("scalaScale", scalaScaleText, nullptr);
+        state.setProperty ("scalaMapping", scalaMappingText, nullptr);
+    }
 
     // Store the baseline the preset was loaded from. Without it a project that
     // was saved with a tweaked factory patch would look unmodified when it was
@@ -337,6 +507,25 @@ void Cs80AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
     apvts.replaceState (state);
     presetIndex.store (presets.empty() ? 0 : juce::jlimit (0, (int) presets.size() - 1, index),
                        std::memory_order_relaxed);
+
+    // State v2 (and earlier) did not contain tuning metadata. Restore such
+    // sessions to 12-TET and retain the previous factory-preset fallback.
+    const juce::String scaleText = state.getProperty ("scalaScale").toString();
+    const juce::String mappingText = state.getProperty ("scalaMapping").toString();
+    Tuning restored;
+    std::string tuningError;
+    bool valid = scaleText.isEmpty() || restored.loadScala (scaleText.toStdString(), &tuningError);
+    valid = valid && (mappingText.isEmpty()
+                       || restored.loadKeyboardMapping (mappingText.toStdString(), &tuningError));
+
+    engine.setTuning (valid ? restored : Tuning {});
+    {
+        const juce::ScopedLock lock (stateMetadataLock);
+        userPresetName = state.getProperty ("userPresetName").toString();
+        scalaScaleText = valid ? scaleText : juce::String();
+        scalaMappingText = valid ? mappingText : juce::String();
+    }
+    presetRevision.fetch_add (1, std::memory_order_relaxed);
 
     if (auto baseline = state.getChildWithName ("CS80E_PRESET_BASELINE"); baseline.isValid())
     {

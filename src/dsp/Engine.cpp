@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 namespace cs80
@@ -871,6 +872,15 @@ struct Voice
         if (! active)
             return;
 
+        // Scala keyboard mappings explicitly allow unassigned ('x') keys.
+        // They must be silent rather than being clamped into an audible
+        // sub-Hz oscillator by the frequency setter.
+        if (tuning.noteFrequency (note) <= 0.0)
+        {
+            kill();
+            return;
+        }
+
         const float chunkSeconds = (float) numSamples / (float) sampleRate;
 
         // Slow, deterministic per-voice drift. Nothing in an analogue polysynth
@@ -1357,11 +1367,15 @@ struct Engine::Impl
     std::array<ModRoute, pid::kModSlots> routes {};
     int routeCount = 0;
 
-    // Two tuning tables. The message thread fills the inactive one and flips
-    // the index; the audio thread reads whichever table is current. No locks
-    // and no allocation in the callback.
-    std::array<Tuning, 2> tunings;
+    // Three immutable-on-read tuning slots. The writer avoids both the
+    // published slot and the one currently owned by the audio callback. A
+    // reader announces its slot and rechecks the published index before it
+    // dereferences anything, closing the race with rapid successive updates.
+    std::array<Tuning, 3> tunings;
     std::atomic<int> activeTuning { 0 };
+    std::atomic<int> readingTuning { -1 };
+    mutable std::mutex tuningWriterMutex; // never acquired by the audio thread
+    Tuning publishedTuning;
 
     std::array<std::atomic<float>, kNumVoices> activity {};
     std::atomic<float> meterL { 0.0f }, meterR { 0.0f };
@@ -1491,14 +1505,26 @@ struct Engine::Impl
 
     void publishTuning (const Tuning& newTuning)
     {
-        const int current = activeTuning.load (std::memory_order_relaxed);
-        tunings[(size_t) (1 - current)] = newTuning;
-        activeTuning.store (1 - current, std::memory_order_release);
+        const std::lock_guard<std::mutex> lock (tuningWriterMutex);
+        const int current = activeTuning.load();
+        const int reading = readingTuning.load();
+
+        for (int slot = 0; slot < (int) tunings.size(); ++slot)
+        {
+            if (slot == current || slot == reading)
+                continue;
+
+            tunings[(size_t) slot] = newTuning;
+            publishedTuning = newTuning;
+            activeTuning.store (slot);
+            return;
+        }
     }
 
-    const Tuning& currentTuning() const
+    Tuning tuningSnapshot() const
     {
-        return tunings[(size_t) activeTuning.load (std::memory_order_acquire)];
+        const std::lock_guard<std::mutex> lock (tuningWriterMutex);
+        return publishedTuning;
     }
 
     void processChunk (float* left, float* right, int numSamples)
@@ -1522,7 +1548,15 @@ struct Engine::Impl
             }
         }
 
-        const Tuning& currentTuningTable = currentTuning();
+        int tuningSlot = 0;
+        do
+        {
+            tuningSlot = activeTuning.load();
+            readingTuning.store (tuningSlot);
+        }
+        while (activeTuning.load() != tuningSlot);
+
+        const Tuning& currentTuningTable = tunings[(size_t) tuningSlot];
 
         std::fill_n (mixL.begin(), numSamples, 0.0f);
         std::fill_n (mixR.begin(), numSamples, 0.0f);
@@ -1724,6 +1758,7 @@ struct Engine::Impl
                             std::memory_order_relaxed);
 
         hasRendered = true;
+        readingTuning.store (-1);
     }
 };
 
@@ -1780,9 +1815,9 @@ void Engine::setTuning (const Tuning& newTuning)
     impl->publishTuning (newTuning);
 }
 
-const Tuning& Engine::tuning() const
+Tuning Engine::tuning() const
 {
-    return impl->currentTuning();
+    return impl->tuningSnapshot();
 }
 
 void Engine::setParams (const Params& newParams)

@@ -51,6 +51,7 @@ add_library(Cs80PluginCore STATIC
     ui/Widgets.cpp
     ui/Performance.cpp
     ui/PresetUI.cpp
+    ui/AdvancedPanel.cpp
 )
 
 target_include_directories(Cs80PluginCore PUBLIC
