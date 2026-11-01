@@ -18,6 +18,8 @@
   audio thread never acquires a lock.
 - The preset LCD updates when a user preset is saved or loaded and identifies
   the personal bank rather than presenting a factory patch number.
+- Synchronised preset-baseline reads/writes across the editor and host state
+  callbacks, preventing an edited-indicator race during project save/restore.
 
 ### Verification and downloads
 

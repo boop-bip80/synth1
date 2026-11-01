@@ -241,7 +241,10 @@ void Cs80AudioProcessor::loadPreset (int index)
         }
     }
 
-    presetParams = p;
+    {
+        const juce::ScopedLock lock (presetBaselineLock);
+        presetParams = p;
+    }
     presetIndex.store (index, std::memory_order_relaxed);
     {
         const juce::ScopedLock lock (stateMetadataLock);
@@ -305,6 +308,7 @@ juce::String Cs80AudioProcessor::currentPresetBlurb() const
 bool Cs80AudioProcessor::isPresetEdited() const
 {
     const Params current = snapshotParams();
+    const juce::ScopedLock lock (presetBaselineLock);
 
     for (const auto& spec : paramSpecs())
     {
@@ -337,8 +341,12 @@ bool Cs80AudioProcessor::saveUserPreset (const juce::File& destination, juce::St
     }
 
     juce::String previousName;
-    const Params previousBaseline = presetParams;
-    presetParams = snapshotParams();
+    Params previousBaseline;
+    {
+        const juce::ScopedLock lock (presetBaselineLock);
+        previousBaseline = presetParams;
+        presetParams = snapshotParams();
+    }
     {
         const juce::ScopedLock lock (stateMetadataLock);
         previousName = userPresetName;
@@ -352,7 +360,10 @@ bool Cs80AudioProcessor::saveUserPreset (const juce::File& destination, juce::St
     {
         const juce::ScopedLock lock (stateMetadataLock);
         userPresetName = previousName;
-        presetParams = previousBaseline;
+        {
+            const juce::ScopedLock baselineLock (presetBaselineLock);
+            presetParams = previousBaseline;
+        }
         error = "Could not write the preset file.";
         return false;
     }
@@ -483,8 +494,14 @@ void Cs80AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // reopened, because the only remaining reference was the live parameters.
     juce::ValueTree baseline ("CS80E_PRESET_BASELINE");
 
+    Params baselineSnapshot;
+    {
+        const juce::ScopedLock lock (presetBaselineLock);
+        baselineSnapshot = presetParams;
+    }
+
     for (const auto& spec : paramSpecs())
-        baseline.setProperty (spec.id, getParam (presetParams, spec.id), nullptr);
+        baseline.setProperty (spec.id, getParam (baselineSnapshot, spec.id), nullptr);
 
     state.removeChild (state.getChildWithName (baseline.getType()), nullptr);
     state.addChild (baseline, -1, nullptr);
@@ -527,24 +544,26 @@ void Cs80AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
     }
     presetRevision.fetch_add (1, std::memory_order_relaxed);
 
+    Params restoredBaseline = defaultParams();
     if (auto baseline = state.getChildWithName ("CS80E_PRESET_BASELINE"); baseline.isValid())
     {
-        presetParams = defaultParams();
-
         for (const auto& spec : paramSpecs())
-            setParam (presetParams, spec.id,
+            setParam (restoredBaseline, spec.id,
                       (float) (double) baseline.getProperty (spec.id,
-                                                             getParam (presetParams, spec.id)));
+                                                             getParam (restoredBaseline, spec.id)));
     }
     else
     {
         // States written before the baseline existed: reconstruct the factory
         // patch for the saved program, which is the closest available truth.
-        presetParams = defaultParams();
-
         const int savedIndex = currentPresetIndex();
         if (savedIndex >= 0 && savedIndex < (int) presets.size())
-            applyPreset (presetParams, presets[(size_t) savedIndex]);
+            applyPreset (restoredBaseline, presets[(size_t) savedIndex]);
+    }
+
+    {
+        const juce::ScopedLock lock (presetBaselineLock);
+        presetParams = restoredBaseline;
     }
 }
 } // namespace cs80

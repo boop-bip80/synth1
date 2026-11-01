@@ -79,6 +79,7 @@ private:
     std::vector<std::atomic<float>*> rawParameters;
 
     Params presetParams;
+    mutable juce::CriticalSection presetBaselineLock; // never used by audio callback
     std::atomic<int> presetIndex { 0 };
     std::atomic<uint32_t> presetRevision { 0 };
     mutable juce::CriticalSection stateMetadataLock;

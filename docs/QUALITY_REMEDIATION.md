@@ -20,6 +20,7 @@ Baseline: `main` at `2dcf308`, version 5.0.0, 3,928 headless checks passing.
 | Bad Scala files could produce infinite frequencies | Reject non-finite rebuilt pitch tables without mutating current tuning | Overflow regression checks pass |
 | MSVC rejected the filter-response test lambda | Capture the local sample-rate constant explicitly | Windows compilation log identified the failure; re-run pending |
 | Saved user-patch name stayed stale in LCD | Preset revision and USER-bank display | Source-level review; UI screenshot pipeline pending |
+| Preset edited-state baseline was read/written by different threads | Protect baseline snapshots for editor and host-state callbacks | JUCE syntax-checked; round-trip test checks clean saved baseline in CI |
 | README/screenshots/releases could drift | 13-image screenshot generation, release manifest and asset verification, version 5.3.0 | Awaiting GitHub Actions publication and release download verification |
 
 Local DSP result: **5,255 checks, 0 failures** with C++17 (`g++ -O2 -pthread`).

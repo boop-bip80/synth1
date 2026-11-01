@@ -90,7 +90,8 @@ bool verifyPresetAndTuningRoundTrip()
         && std::abs (tuning.noteFrequency (61)
                      - 261.6255653 * std::exp2 (200.0 / 1200.0)) < 0.01
         && ! tuning.isEqualTemperament()
-        && restored.currentPresetCategory() == "USER";
+        && restored.currentPresetCategory() == "USER"
+        && ! restored.isPresetEdited();
 
     std::printf ("  user preset / Scala / mod matrix round-trip: %s\n",
                  verified ? "PASS" : "FAIL");
