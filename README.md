@@ -42,12 +42,12 @@ The links below always point at the newest successful build on `main`:
 
 | Platform | Download | Formats |
 | --- | --- | --- |
-| **Linux** | [CS-80E-linux.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-linux.zip) | VST3 + Standalone |
-| **macOS** | [CS-80E-macos.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-macos.zip) | VST3 + AU + Standalone |
-| **Windows** | [CS-80E-windows.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-windows.zip) | VST3 + Standalone |
-| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/latest/download/CS-80E-previews.zip) | ten PNGs + demo WAV |
-| **Build manifest** | [latest.json](https://github.com/boop-bip80/synth1/releases/latest/download/latest.json) | JSON |
-| **Checksums** | [SHA256SUMS.txt](https://github.com/boop-bip80/synth1/releases/latest/download/SHA256SUMS.txt) | SHA-256 |
+| **Linux** | [CS-80E-linux.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-linux.zip) | VST3 + Standalone |
+| **macOS** | [CS-80E-macos.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-macos.zip) | VST3 + AU + Standalone |
+| **Windows** | [CS-80E-windows.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-windows.zip) | VST3 + Standalone |
+| **Renders + demo** | [CS-80E-previews.zip](https://github.com/boop-bip80/synth1/releases/download/latest/CS-80E-previews.zip) | ten PNGs + demo WAV |
+| **Build manifest** | [latest.json](https://github.com/boop-bip80/synth1/releases/download/latest/latest.json) | JSON |
+| **Checksums** | [SHA256SUMS.txt](https://github.com/boop-bip80/synth1/releases/download/latest/SHA256SUMS.txt) | SHA-256 |
 
 Every push to `main` builds Linux, macOS and Windows, runs the headless suite,
 renders the panel, validates the Linux VST3 with

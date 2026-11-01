@@ -346,6 +346,40 @@ jobs:
             release/latest.json
             release/SHA256SUMS.txt
 
+      - name: Point rolling tag at this build and prune stale assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # softprops/action-gh-release reuses an existing tag, so move `latest`
+          # onto the commit that produced these binaries. The release's source
+          # archives then match the builds instead of an older revision.
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" \
+            -f sha="${GITHUB_SHA}" \
+            -F force=true
+
+          # The action only uploads; it never deletes. Remove assets that this
+          # pipeline no longer produces (for example screenshots renamed in a
+          # new release) so the rolling release always matches docs/ exactly.
+          expected="CS-80E-linux.zip CS-80E-macos.zip CS-80E-windows.zip CS-80E-previews.zip cs80-demo.wav latest.json SHA256SUMS.txt"
+          for shot in 01-blade-brass 02-vangelis-lead 03-neon-pads 04-preset-library \
+                      05-brass-stab 06-filter-closeup 07-vca-sine 08-ribbon-keybed \
+                      09-blade-runner 10-channel-two; do
+            expected="$expected ${shot}.png"
+          done
+
+          gh release view latest --json assets --jq '.assets[].name' | while read -r asset; do
+            case " ${expected} " in
+              *" ${asset} "*) ;;
+              *)
+                echo "Removing stale release asset: ${asset}"
+                gh release delete-asset latest "${asset}" --yes
+                ;;
+            esac
+          done
+
+          echo "Release assets now:"
+          gh release view latest --json assets --jq '.assets[].name'
+
   release:
     name: Attach builds to tag release
     if: startsWith(github.ref, 'refs/tags/v')
