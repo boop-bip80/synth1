@@ -24,7 +24,7 @@ void styleButton (juce::TextButton& button)
 void styleLabel (juce::Label& label, float size = 15.0f)
 {
     label.setColour (juce::Label::textColourId, text);
-    label.setFont (juce::Font (size));
+    label.setFont (juce::Font (juce::FontOptions (size)));
 }
 } // namespace
 
@@ -206,13 +206,13 @@ void AdvancedPanel::paint (juce::Graphics& g)
     g.drawRoundedRectangle (panelBounds.reduced (1.0f), 14.0f, 2.0f);
 
     g.setColour (text);
-    g.setFont (juce::Font (28.0f));
+    g.setFont (juce::Font (juce::FontOptions (28.0f)));
     g.drawText ("CS-80E  /  ADVANCED", 90, 54, 550, 40, juce::Justification::centredLeft);
     g.setColour (accent.withAlpha (0.55f));
     g.drawLine (86.0f, 162.0f, (float) getWidth() - 86.0f, 162.0f, 1.2f);
 
     g.setColour (muted);
-    g.setFont (juce::Font (17.0f));
+    g.setFont (juce::Font (juce::FontOptions (17.0f)));
     if (currentPage == Page::modulation)
     {
         g.drawText ("ROUTE", 115, 186, 130, 30, juce::Justification::centredLeft);
@@ -296,7 +296,7 @@ void AdvancedPanel::paintListBoxItem (int row, juce::Graphics& g, int width,
 
     g.fillAll (selected ? accent.withAlpha (0.26f) : (row & 1) ? panel : background);
     g.setColour (selected ? juce::Colours::white : text);
-    g.setFont (juce::Font (17.0f));
+    g.setFont (juce::Font (juce::FontOptions (17.0f)));
     g.drawText (userPresetFiles[(size_t) row].getFileNameWithoutExtension(),
                 18, 0, width - 36, height, juce::Justification::centredLeft);
 }

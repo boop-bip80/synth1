@@ -23,6 +23,8 @@
 
 - Extended the headless suite to **5,255 checks** (0 failures in a local g++
   run), including concurrent tuning publication and Scala edge cases.
+- Fixed an MSVC-only test compilation failure caused by a missing capture in
+  the filter-response test; it was visible in the Windows Actions build log.
 - The offline renderer now produces **13 screenshots**: the original ten plus
   modulation matrix, microtuning and user-preset views. CI validates each
   render, publishes them with the platform binaries and verifies release assets

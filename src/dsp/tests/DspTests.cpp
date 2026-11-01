@@ -1599,7 +1599,7 @@ void testFilterUnitResponse()
 
     constexpr double sampleRate = 48000.0;
 
-    auto gainAt = [] (float cutoff, float q, double frequency)
+    auto gainAt = [sampleRate] (float cutoff, float q, double frequency)
     {
         SVF filter;
         filter.reset();

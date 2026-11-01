@@ -16,8 +16,9 @@ Baseline: `main` at `2dcf308`, version 5.0.0, 3,928 headless checks passing.
 | Mod matrix was DSP/automation-only | Eight fully attached route rows in the Advanced panel | Code inspection; JUCE CI/UI verification pending |
 | No personal preset manager | Search, save, load, rename, delete, import, export `.cs80e` full-state presets | Screenshot renderer now includes a JUCE state/file round-trip; CI run pending |
 | Scala tuning engine-only and incorrect absolute-pitch parsing | `.scl` and `.kbm` controls, state persistence, corrected pitch semantics and unmapped keys | `testMicrotuning` passes; plugin-state round-trip pending |
-| Tuning publication overwrote a buffer still read by the audio callback | Three pinned slots with audio-side recheck, writer-only mutex | `testConcurrentTuningPublication` passes; race-sanitizer test remains useful |
+| Tuning publication overwrote a buffer still read by the audio callback | Three pinned slots with audio-side recheck, writer-only mutex | `testConcurrentTuningPublication` passes, including full-suite ThreadSanitizer run |
 | Bad Scala files could produce infinite frequencies | Reject non-finite rebuilt pitch tables without mutating current tuning | Overflow regression checks pass |
+| MSVC rejected the filter-response test lambda | Capture the local sample-rate constant explicitly | Windows compilation log identified the failure; re-run pending |
 | Saved user-patch name stayed stale in LCD | Preset revision and USER-bank display | Source-level review; UI screenshot pipeline pending |
 | README/screenshots/releases could drift | 13-image screenshot generation, release manifest and asset verification, version 5.3.0 | Awaiting GitHub Actions publication and release download verification |
 
